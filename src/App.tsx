@@ -147,7 +147,6 @@ export default function App() {
   const ActiveToolComponent = activeTool ? toolRegistry[activeTool.id] : undefined;
   const PanelToggleIcon = isSidebarCollapsed ? PanelLeft : PanelLeftClose;
   const ThemeToggleIcon = theme === "dark" ? Sun : Moon;
-
   return (
     <div className={clsx("shell", { "shell--collapsed": isSidebarCollapsed })}>
       <motion.aside
