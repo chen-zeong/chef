@@ -29,17 +29,27 @@ const fadeVariants = {
   exit: { opacity: 0, y: 8, filter: "blur(4px)" }
 };
 
-const searchTargets = (module: ModuleMeta) => [
-  module.name,
-  module.description,
-  module.tools.map((tool) => tool.name).join(" "),
-  module.tools.map((tool) => tool.description).join(" ")
-];
-
 const moduleIcons: Record<string, LucideIcon> = {
   Braces,
   Shield,
   Image: ImageIcon
+};
+
+const sidebarVariants = {
+  expanded: {
+    width: 216,
+    padding: "1.4rem 1.15rem",
+    boxShadow: "0 20px 48px rgba(15, 23, 42, 0.12)",
+    borderRadius: "0 20px 20px 0",
+    transition: { type: "spring", stiffness: 180, damping: 22, mass: 1 }
+  },
+  collapsed: {
+    width: 88,
+    padding: "1.8rem 0.85rem",
+    boxShadow: "0 12px 32px rgba(15, 23, 42, 0.1)",
+    borderRadius: "0 16px 16px 0",
+    transition: { type: "spring", stiffness: 260, damping: 30, mass: 0.9 }
+  }
 };
 
 export default function App() {
@@ -65,31 +75,22 @@ export default function App() {
     window.localStorage.setItem("chef-theme", theme);
   }, [theme]);
 
-  const filteredModules = useMemo(() => {
-    if (!normalizedSearch) {
-      return modules;
-    }
-    return modules.filter((module) =>
-      searchTargets(module).some((value) => value.toLowerCase().includes(normalizedSearch))
-    );
-  }, [normalizedSearch]);
-
   const [activeModuleId, setActiveModuleId] = useState<string>(modules[0]?.id);
 
   useEffect(() => {
-    if (!filteredModules.length) {
+    if (!modules.length) {
       setActiveModuleId("");
       return;
     }
-    const hasActive = filteredModules.some((module) => module.id === activeModuleId);
+    const hasActive = modules.some((module) => module.id === activeModuleId);
     if (!hasActive) {
-      setActiveModuleId(filteredModules[0].id);
+      setActiveModuleId(modules[0].id);
     }
-  }, [filteredModules, activeModuleId]);
+  }, [modules, activeModuleId]);
 
   const activeModule = useMemo<ModuleMeta | undefined>(
-    () => filteredModules.find((module) => module.id === activeModuleId),
-    [filteredModules, activeModuleId]
+    () => modules.find((module) => module.id === activeModuleId),
+    [modules, activeModuleId]
   );
 
   const [activeToolId, setActiveToolId] = useState<string>(
@@ -101,10 +102,13 @@ export default function App() {
       setActiveToolId("");
       return;
     }
+    const existingTool = activeModule.tools.find((tool) => tool.id === activeToolId);
+    if (existingTool) {
+      return;
+    }
     const readyTool =
-      activeModule.tools.find((tool) => tool.status === "ready") ??
-      activeModule.tools[0];
-    if (readyTool && readyTool.id !== activeToolId) {
+      activeModule.tools.find((tool) => tool.status === "ready") ?? activeModule.tools[0];
+    if (readyTool) {
       setActiveToolId(readyTool.id);
     }
   }, [activeModule, activeToolId]);
@@ -119,13 +123,10 @@ export default function App() {
     );
   };
 
-  const visibleTools = useMemo(() => {
-    if (!activeModule) {
-      return [];
-    }
-    const matched = activeModule.tools.filter((tool) => toolMatchesSearch(tool));
-    return matched.length > 0 ? matched : activeModule.tools;
-  }, [activeModule, normalizedSearch]);
+  const visibleTools = useMemo(
+    () => (activeModule ? activeModule.tools : []),
+    [activeModule]
+  );
 
   useEffect(() => {
     if (!activeModule) {
@@ -145,15 +146,43 @@ export default function App() {
   }, [activeModule, activeToolId]);
 
   const ActiveToolComponent = activeTool ? toolRegistry[activeTool.id] : undefined;
+  const toolSearchResults = useMemo(() => {
+    if (!normalizedSearch) {
+      return [];
+    }
+    return modules
+      .flatMap((module) =>
+        module.tools.map((tool) => ({
+          moduleId: module.id,
+          moduleName: module.name,
+          tool
+        }))
+      )
+      .filter(({ tool }) => {
+        const name = tool.name.toLowerCase();
+        const description = tool.description.toLowerCase();
+        return name.includes(normalizedSearch) || description.includes(normalizedSearch);
+      })
+      .slice(0, 8);
+  }, [modules, normalizedSearch]);
+
   const PanelToggleIcon = isSidebarCollapsed ? PanelLeft : PanelLeftClose;
   const ThemeToggleIcon = theme === "dark" ? Sun : Moon;
+
+  const handleSelectTool = (moduleId: string, toolId: string) => {
+    setActiveModuleId(moduleId);
+    setActiveToolId(toolId);
+    setSidebarCollapsed(false);
+    setSearchTerm("");
+  };
   return (
     <div className={clsx("shell", { "shell--collapsed": isSidebarCollapsed })}>
       <motion.aside
         className={clsx("nav", { "nav--collapsed": isSidebarCollapsed })}
-        animate={{ width: isSidebarCollapsed ? 88 : 220 }}
+        variants={sidebarVariants}
+        animate={isSidebarCollapsed ? "collapsed" : "expanded"}
         initial={false}
-        transition={{ type: "spring", stiffness: 220, damping: 22, mass: 0.85 }}
+        layout
       >
         <div className="nav__brand">
           <span className="nav__logo">Chef</span>
@@ -174,7 +203,7 @@ export default function App() {
             )}
           </AnimatePresence>
           <div className="nav__list">
-            {filteredModules.map((module) => {
+            {modules.map((module) => {
               const isActive = module.id === activeModuleId;
               const Icon = moduleIcons[module.icon] ?? Box;
               return (
@@ -208,9 +237,6 @@ export default function App() {
                 </motion.button>
               );
             })}
-            {!filteredModules.length && (
-              <div className="nav__empty">没有匹配的模块</div>
-            )}
           </div>
         </div>
       </motion.aside>
@@ -228,7 +254,7 @@ export default function App() {
             <Search size={16} strokeWidth={1.6} />
             <input
               type="search"
-              placeholder="搜索模块或工具..."
+              placeholder="搜索工具..."
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
             />
@@ -237,6 +263,38 @@ export default function App() {
                 <X size={16} strokeWidth={1.8} />
               </button>
             )}
+            <AnimatePresence>
+              {searchTerm && (
+                <motion.div
+                  className="topbar__search-results"
+                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  {toolSearchResults.length > 0 ? (
+                    toolSearchResults.map(({ moduleId, moduleName, tool }) => (
+                      <motion.button
+                        key={tool.id}
+                        type="button"
+                        className="search-result"
+                        whileHover={{ x: 4 }}
+                        whileTap={{ scale: 0.97 }}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          handleSelectTool(moduleId, tool.id);
+                        }}
+                      >
+                        <span className="search-result__title">{tool.name}</span>
+                        <span className="search-result__meta">{moduleName}</span>
+                      </motion.button>
+                    ))
+                  ) : (
+                    <div className="search-result search-result--empty">未找到匹配的工具</div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
           <div className="topbar__info">
             <button
@@ -276,10 +334,6 @@ export default function App() {
                     whileTap={{ scale: disabled ? 1 : 0.97 }}
                   >
                     <span className="tool-card__name">{tool.name}</span>
-                    <span className="tool-card__desc">{tool.description}</span>
-                    <span className="tool-card__status">
-                      {tool.status === "ready" ? "立即使用" : "开发中"}
-                    </span>
                   </motion.button>
                 );
               })}
