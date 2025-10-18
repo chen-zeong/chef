@@ -1,5 +1,13 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { motion } from "framer-motion";
+import clsx from "clsx";
+import {
+  BUTTON_GHOST,
+  CHIP_ACTIVE,
+  CHIP_BASE,
+  PANEL_CONTAINER,
+  PANEL_TEXTAREA
+} from "../../ui/styles";
 
 export function SvgPreviewTool() {
   const [code, setCode] = useState<string>(defaultSvg);
@@ -11,17 +19,39 @@ export function SvgPreviewTool() {
     await navigator.clipboard.writeText(sanitizedCode);
   };
 
+  const modeButtonClass = (mode: typeof background) =>
+    clsx(
+      CHIP_BASE,
+      "px-4 py-1.5 text-xs uppercase tracking-[0.18em]",
+      mode === background && CHIP_ACTIVE
+    );
+
+  const stageStyles: Record<typeof background, CSSProperties> = {
+    grid: {
+      backgroundImage:
+        "linear-gradient(90deg, rgba(148,163,184,0.15) 1px, transparent 1px), linear-gradient(180deg, rgba(148,163,184,0.15) 1px, transparent 1px)",
+      backgroundSize: "16px 16px",
+      backgroundColor: "var(--surface-bg)"
+    },
+    light: {
+      backgroundColor: "var(--surface-alt-bg)"
+    },
+    dark: {
+      backgroundColor: "rgba(28,28,36,0.92)"
+    }
+  };
+
   return (
-    <div className="svgtool">
-      <div className="svgtool__surface">
-        <header className="svgtool__header">
+    <div className="flex h-full flex-col">
+      <div className={clsx(PANEL_CONTAINER, "flex-1 gap-6")}>
+        <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <span className="svgtool__eyebrow">SVG</span>
-            <h3>SVG 代码预览</h3>
+            <span className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">SVG</span>
+            <h3 className="mt-1 text-xl font-semibold text-[var(--text-primary)]">SVG 代码预览</h3>
           </div>
           <motion.button
             whileTap={{ scale: 0.95 }}
-            className="svgtool__copy"
+            className={clsx(BUTTON_GHOST, "px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em]")}
             type="button"
             onClick={handleCopy}
             disabled={!sanitizedCode}
@@ -30,51 +60,44 @@ export function SvgPreviewTool() {
           </motion.button>
         </header>
 
-        <div className="svgtool__content">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <textarea
-            className="svgtool__textarea"
+            className={clsx(PANEL_TEXTAREA, "min-h-[320px] font-mono text-sm")}
             spellCheck={false}
             value={code}
             onChange={(event) => setCode(event.target.value)}
             placeholder="<svg>...</svg>"
           />
-          <div className="svgtool__preview">
-            <div className="svgtool__preview-header">
+          <div className="flex flex-col gap-3 rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-semibold text-[var(--text-secondary)]">
               <span>预览</span>
-              <div className="svgtool__preview-modes">
-                <button
-                  type="button"
-                  className={background === "grid" ? "active" : ""}
-                  onClick={() => setBackground("grid")}
-                >
+              <div className="flex items-center gap-2">
+                <button type="button" className={modeButtonClass("grid")} onClick={() => setBackground("grid")}>
                   网格
                 </button>
-                <button
-                  type="button"
-                  className={background === "light" ? "active" : ""}
-                  onClick={() => setBackground("light")}
-                >
+                <button type="button" className={modeButtonClass("light")} onClick={() => setBackground("light")}>
                   浅色
                 </button>
-                <button
-                  type="button"
-                  className={background === "dark" ? "active" : ""}
-                  onClick={() => setBackground("dark")}
-                >
+                <button type="button" className={modeButtonClass("dark")} onClick={() => setBackground("dark")}>
                   深色
                 </button>
               </div>
             </div>
-            <div className={`svgtool__stage svgtool__stage--${background}`}>
+            <div
+              className="relative flex min-h-[280px] flex-1 items-center justify-center overflow-hidden rounded-xl border border-[color:var(--border-subtle)]"
+              style={stageStyles[background]}
+            >
               {sanitizedCode ? (
                 <div
-                  className="svgtool__stage-inner"
+                  className="grid h-full w-full place-items-center p-6"
                   dangerouslySetInnerHTML={{
                     __html: sanitizedCode
                   }}
                 />
               ) : (
-                <div className="svgtool__placeholder">粘贴 SVG 代码后立即预览。</div>
+                <div className="rounded-xl border border-dashed border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-4 py-6 text-sm text-[var(--text-secondary)]">
+                  粘贴 SVG 代码后立即预览。
+                </div>
               )}
             </div>
           </div>

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import clsx from "clsx";
+import { BUTTON_PRIMARY, PANEL_CONTAINER, PANEL_ERROR, PANEL_TITLE } from "../../ui/styles";
 
 type WakeLockSentinel = {
   release: () => Promise<void>;
@@ -80,44 +82,61 @@ export function AwakeTool() {
   };
 
   return (
-    <div className="awaketool">
-      <div className="awaketool__surface">
-        <header>
-          <span className="awaketool__eyebrow">Wake Lock</span>
-          <h3>电脑常亮</h3>
-        </header>
-        <p className="awaketool__intro">
-          当你需要在演示、视频会议或实时监控时保持屏幕常亮，可在此开启唤醒锁。
-        </p>
+    <div className={clsx(PANEL_CONTAINER, "gap-4")}> 
+      <header className="flex flex-col gap-1">
+        <span className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">Wake Lock</span>
+        <h3 className={PANEL_TITLE}>电脑常亮</h3>
+      </header>
+      <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+        当你需要在演示、视频会议或实时监控时保持屏幕常亮，可在此开启唤醒锁。
+      </p>
 
-        <motion.button
-          type="button"
-          className={isActive ? "awaketool__button awaketool__button--active" : "awaketool__button"}
-          whileTap={{ scale: 0.95 }}
-          onClick={toggle}
-          disabled={!isSupported && !isActive}
-        >
-          {isActive ? "已保持常亮（点击关闭）" : "启动屏幕常亮"}
-        </motion.button>
+      <motion.button
+        type="button"
+        className={clsx(
+          BUTTON_PRIMARY,
+          "w-full justify-center",
+          isActive
+            ? "bg-[var(--positive)] hover:bg-[var(--positive)]"
+            : ""
+        )}
+        whileTap={{ scale: 0.95 }}
+        onClick={toggle}
+        disabled={!isSupported && !isActive}
+      >
+        {isActive ? "已保持常亮（点击关闭）" : "启动屏幕常亮"}
+      </motion.button>
 
-        <div className="awaketool__hint">
-          <h4>使用说明</h4>
-          <ul>
-            <li>开启后请保持窗口处于前台，以避免浏览器自动释放唤醒锁。</li>
-            <li>切换标签页或最小化窗口时，系统可能会自动撤销常亮，需要重新开启。</li>
-            <li>若按钮不可用，请在系统设置中关闭自动睡眠，或授予应用更多权限。</li>
-          </ul>
-        </div>
-
-        <div className="awaketool__status">
-          状态：
-          <span className={isActive ? "awaketool__status-dot awaketool__status-dot--active" : "awaketool__status-dot"}>
-            {isActive ? "运行中" : "已停用"}
-          </span>
-        </div>
-
-        {error && <div className="awaketool__error">提示：{error}</div>}
+      <div className="space-y-3 rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-4 text-sm text-[var(--text-secondary)]">
+        <h4 className="text-sm font-semibold text-[var(--text-primary)]">使用说明</h4>
+        <ul className="list-disc space-y-2 pl-5">
+          <li>开启后请保持窗口处于前台，以避免浏览器自动释放唤醒锁。</li>
+          <li>切换标签页或最小化窗口时，系统可能会自动撤销常亮，需要重新开启。</li>
+          <li>若按钮不可用，请在系统设置中关闭自动睡眠，或授予应用更多权限。</li>
+        </ul>
       </div>
+
+      <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
+        <span className="font-medium text-[var(--text-primary)]">状态：</span>
+        <span
+          className={clsx(
+            "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold",
+            isActive
+              ? "border-[rgba(21,128,61,0.35)] bg-[rgba(21,128,61,0.12)] text-[var(--positive)]"
+              : "border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] text-[var(--text-tertiary)]"
+          )}
+        >
+          <span
+            className={clsx(
+              "inline-block h-2 w-2 rounded-full",
+              isActive ? "bg-[var(--positive)]" : "bg-[var(--text-tertiary)]"
+            )}
+          />
+          {isActive ? "运行中" : "已停用"}
+        </span>
+      </div>
+
+      {error && <div className={PANEL_ERROR}>提示：{error}</div>}
     </div>
   );
 }

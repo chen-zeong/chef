@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import clsx from "clsx";
+import { PANEL_CONTAINER, PANEL_INPUT } from "../../ui/styles";
 
 type HostEntry = {
   id: string;
@@ -81,35 +83,37 @@ export function HostsTool() {
     await navigator.clipboard.writeText(hostText);
   };
 
+  const actionButton = clsx(
+    "inline-flex items-center justify-center rounded-lg border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)] transition-all duration-150 ease-out",
+    "hover:-translate-y-[1px] hover:border-[rgba(37,99,235,0.24)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(37,99,235,0.25)]",
+    "disabled:cursor-not-allowed disabled:opacity-60"
+  );
+
+  const primaryActionButton = clsx(
+    actionButton,
+    "border-transparent bg-[var(--accent)] text-white shadow-[0_16px_32px_rgba(37,99,235,0.18)] hover:bg-[var(--accent-strong)]"
+  );
+
   return (
-    <div className="hosttool">
-      <div className="hosttool__surface">
-        <header className="hosttool__header">
+    <div className="flex h-full flex-col">
+      <div className={clsx(PANEL_CONTAINER, "flex-1 gap-5")}>
+        <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <span className="hosttool__eyebrow">Hosts</span>
-            <h3>Host 管理</h3>
+            <span className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">Hosts</span>
+            <h3 className="mt-1 text-xl font-semibold text-[var(--text-primary)]">Host 管理</h3>
           </div>
-          <div className="hosttool__header-actions">
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.95 }}
-              className="hosttool__action"
-              onClick={() => toggleAll(true)}
-            >
+          <div className="flex flex-wrap items-center gap-2">
+            <motion.button type="button" whileTap={{ scale: 0.95 }} className={actionButton} onClick={() => toggleAll(true)}>
               全部启用
             </motion.button>
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.95 }}
-              className="hosttool__action"
-              onClick={() => toggleAll(false)}
-            >
+            <motion.button type="button" whileTap={{ scale: 0.95 }} className={actionButton} onClick={() => toggleAll(false)}>
               全部停用
             </motion.button>
             <motion.button
               type="button"
               whileTap={{ scale: 0.95 }}
-              className="hosttool__action hosttool__action--primary"
+              className={primaryActionButton}
               onClick={handleCopy}
               disabled={!hostText}
             >
@@ -118,8 +122,8 @@ export function HostsTool() {
           </div>
         </header>
 
-        <div className="hosttool__entries">
-          <div className="hosttool__entries-head">
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-[64px_1.2fr_1.2fr_1fr_72px] items-center gap-3 text-[0.78rem] uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
             <span>启用</span>
             <span>目标地址</span>
             <span>域名</span>
@@ -127,31 +131,39 @@ export function HostsTool() {
             <span />
           </div>
           {entries.map((entry) => (
-            <div key={entry.id} className="hosttool__row">
+            <div
+              key={entry.id}
+              className="grid grid-cols-[64px_1.2fr_1.2fr_1fr_72px] items-center gap-3 rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] px-3 py-2 shadow-sm"
+            >
               <input
                 type="checkbox"
+                className="h-4 w-4 rounded border border-[color:var(--border-subtle)] text-[var(--accent)] focus:ring-[var(--accent)]"
                 checked={entry.enabled}
                 onChange={(event) => updateEntry(entry.id, { enabled: event.target.checked })}
               />
               <input
-                className="hosttool__input"
+                className={clsx(PANEL_INPUT, "py-2")}
                 placeholder="例如 127.0.0.1"
                 value={entry.target}
                 onChange={(event) => updateEntry(entry.id, { target: event.target.value })}
               />
               <input
-                className="hosttool__input"
+                className={clsx(PANEL_INPUT, "py-2")}
                 placeholder="例如 api.example.dev"
                 value={entry.domain}
                 onChange={(event) => updateEntry(entry.id, { domain: event.target.value })}
               />
               <input
-                className="hosttool__input"
+                className={clsx(PANEL_INPUT, "py-2")}
                 placeholder="可选备注"
                 value={entry.comment}
                 onChange={(event) => updateEntry(entry.id, { comment: event.target.value })}
               />
-              <button className="hosttool__remove" type="button" onClick={() => removeEntry(entry.id)}>
+              <button
+                type="button"
+                className="text-sm font-semibold text-[var(--negative)] transition-colors hover:text-[rgba(220,38,38,0.85)]"
+                onClick={() => removeEntry(entry.id)}
+              >
                 删除
               </button>
             </div>
@@ -159,24 +171,32 @@ export function HostsTool() {
           <motion.button
             type="button"
             whileTap={{ scale: 0.96 }}
-            className="hosttool__add"
+            className="inline-flex items-center justify-center rounded-xl border border-dashed border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-3 py-2 text-sm font-semibold text-[var(--text-secondary)] transition-all duration-150 ease-out hover:-translate-y-[1px] hover:border-[rgba(37,99,235,0.24)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(37,99,235,0.2)]"
             onClick={addEntry}
           >
             + 新增条目
           </motion.button>
         </div>
 
-        <section className="hosttool__preview">
-          <header>
-            <h4>预览内容</h4>
-            <span>{hostText.split("\n").filter(Boolean).length} 行</span>
+        <section className="flex flex-col gap-3">
+          <header className="flex items-center justify-between text-sm font-semibold text-[var(--text-secondary)]">
+            <h4 className="text-sm font-semibold text-[var(--text-primary)]">预览内容</h4>
+            <span className="text-xs uppercase tracking-[0.1em] text-[var(--text-tertiary)]">
+              {hostText.split("\n").filter(Boolean).length} 行
+            </span>
           </header>
-          <textarea className="hosttool__textarea" spellCheck={false} readOnly value={hostText} />
+          <textarea
+            className="min-h-[140px] w-full rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-3 font-mono text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[rgba(37,99,235,0.2)]"
+            spellCheck={false}
+            readOnly
+            value={hostText}
+          />
         </section>
 
-        <section className="hosttool__note">
-          <header>操作提示</header>
+        <section className="flex flex-col gap-3">
+          <header className="text-xs uppercase tracking-[0.1em] text-[var(--text-tertiary)]">操作提示</header>
           <textarea
+            className="min-h-[110px] rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] p-3 text-sm text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[rgba(37,99,235,0.2)]"
             value={note}
             onChange={(event) => setNote(event.target.value)}
             spellCheck={false}

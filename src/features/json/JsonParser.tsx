@@ -2,6 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, type Transition } from "framer-motion";
 import clsx from "clsx";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import {
+  BUTTON_GHOST,
+  BUTTON_TOGGLE,
+  BUTTON_TOGGLE_ACTIVE,
+  CHIP_ACTIVE,
+  CHIP_BASE,
+  PANEL_CONTAINER,
+  PANEL_HEADER,
+  PANEL_TEXTAREA,
+  PANEL_TITLE
+} from "../../ui/styles";
 
 type ParseMode = "pretty" | "compact";
 
@@ -100,64 +111,64 @@ export function JsonParser() {
   }, [isCopied]);
 
   return (
-    <div className="parser">
-      <div className="parser__surface">
-        <header className="parser__header">
-          <div className="parser__title">
-            <span className="parser__eyebrow">JSON</span>
-            <h3>编辑器</h3>
-          </div>
-          <div className="parser__buttons">
-            <motion.button
-              type="button"
-              className={clsx("parser__action", { "parser__action--active": mode === "pretty" })}
-              whileTap={{ scale: 0.96 }}
-              transition={animationTransition}
-              onClick={() => handleFormat("pretty")}
-            >
-              格式化
-            </motion.button>
-            <motion.button
-              type="button"
-              className={clsx("parser__action", { "parser__action--active": mode === "compact" })}
-              whileTap={{ scale: 0.96 }}
-              transition={animationTransition}
-              onClick={() => handleFormat("compact")}
-            >
-              压缩
-            </motion.button>
-            <motion.button
-              type="button"
-              className="parser__action parser__action--ghost"
-              whileTap={{ scale: 0.96 }}
-              transition={animationTransition}
-              onClick={handleCopy}
-            >
-              {isCopied ? "已复制" : "复制"}
-            </motion.button>
-            <motion.button
-              type="button"
-              className="parser__action parser__action--ghost"
-              whileTap={{ scale: 0.96 }}
-              transition={animationTransition}
-              onClick={handleReset}
-            >
-              重置示例
-            </motion.button>
-          </div>
-        </header>
+    <div className={clsx(PANEL_CONTAINER, "gap-4")}> 
+      <header className={clsx(PANEL_HEADER, "gap-4")}> 
+        <div className="flex flex-col gap-1">
+          <span className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">JSON</span>
+          <h3 className={PANEL_TITLE}>编辑器</h3>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <motion.button
+            type="button"
+            className={clsx(BUTTON_TOGGLE, mode === "pretty" && BUTTON_TOGGLE_ACTIVE)}
+            whileTap={{ scale: 0.96 }}
+            transition={animationTransition}
+            onClick={() => handleFormat("pretty")}
+          >
+            格式化
+          </motion.button>
+          <motion.button
+            type="button"
+            className={clsx(BUTTON_TOGGLE, mode === "compact" && BUTTON_TOGGLE_ACTIVE)}
+            whileTap={{ scale: 0.96 }}
+            transition={animationTransition}
+            onClick={() => handleFormat("compact")}
+          >
+            压缩
+          </motion.button>
+          <motion.button
+            type="button"
+            className={BUTTON_GHOST}
+            whileTap={{ scale: 0.96 }}
+            transition={animationTransition}
+            onClick={handleCopy}
+          >
+            {isCopied ? "已复制" : "复制"}
+          </motion.button>
+          <motion.button
+            type="button"
+            className={BUTTON_GHOST}
+            whileTap={{ scale: 0.96 }}
+            transition={animationTransition}
+            onClick={handleReset}
+          >
+            重置示例
+          </motion.button>
+        </div>
+      </header>
 
-        <div className="parser__toggles">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className={clsx("parser__toggle", { "parser__toggle--active": options.allowSingleQuotes })}
+            className={clsx(CHIP_BASE, options.allowSingleQuotes && CHIP_ACTIVE)}
             onClick={() => toggleOption("allowSingleQuotes")}
           >
             单引号容错
           </button>
           <button
             type="button"
-            className={clsx("parser__toggle", { "parser__toggle--active": options.stripSlashes })}
+            className={clsx(CHIP_BASE, options.stripSlashes && CHIP_ACTIVE)}
             onClick={() => toggleOption("stripSlashes")}
           >
             自动去转义
@@ -165,33 +176,41 @@ export function JsonParser() {
         </div>
 
         <textarea
-          className="parser__textarea"
+          className={clsx(PANEL_TEXTAREA, "min-h-[280px] font-mono text-sm")}
           spellCheck={false}
           value={input}
           onChange={(event) => setInput(event.target.value)}
           placeholder='例如: { "name": "Chef" }'
         />
 
-        <div className="parser__status">
+        <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-tertiary)]">
           <motion.span
-            className={clsx("parser__status-dot", { "parser__status-dot--error": !!error })}
-            animate={{ scale: error ? [1, 1.25, 1] : [0.96, 1.04, 0.96] }}
+            className={clsx(
+              "flex items-center gap-2 text-sm font-medium",
+              error ? "text-[var(--negative)]" : "text-[var(--accent)]"
+            )}
+            animate={{ opacity: error ? [1, 0.85, 1] : [0.8, 1, 0.8] }}
             transition={{ repeat: Infinity, duration: error ? 1.6 : 2.4 }}
-          />
-          <span className="parser__status-text">
+          >
+            <span
+              className={clsx(
+                "inline-block h-2.5 w-2.5 rounded-full",
+                error ? "bg-[var(--negative)]" : "bg-[var(--accent)]"
+              )}
+            />
             {error ?? `${statusLabel} · ${new Date(timestamp).toLocaleTimeString()}`}
-          </span>
-        </div>
-
-        <div className="parser__quick-stats">
+          </motion.span>
           <span>字符 {input.length}</span>
           {liveParsed && <span>节点 {countNodes(liveParsed)}</span>}
         </div>
 
         {liveParsed && !error && (
-          <div className="parser__tree">
-            <div className="parser__tree-header">折叠视图</div>
-            <div className="parser__tree-body">
+          <div className="rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-[var(--text-primary)]">折叠视图</span>
+              <span className="text-xs text-[var(--text-tertiary)]">第二层以下节点默认折叠</span>
+            </div>
+            <div className="max-h-[320px] overflow-auto pr-2">
               <JsonTree data={liveParsed} />
             </div>
           </div>
@@ -265,7 +284,7 @@ type JsonTreeProps = {
 
 function JsonTree({ data }: JsonTreeProps) {
   return (
-    <div className="json-tree">
+    <div className="space-y-2 text-sm text-[var(--text-secondary)]">
       <JsonNode value={data} path="$" depth={0} />
     </div>
   );
@@ -283,11 +302,11 @@ function JsonNode({ value, name, depth, path }: JsonNodeProps) {
 
   if (!isObject) {
     return (
-      <div className="json-tree__item">
-        {typeof name !== "undefined" && <span className="json-tree__key">{String(name)}</span>}
-        <span className={clsx("json-tree__value", `json-tree__value--${typeof value}`)}>
-          {formatPrimitive(value)}
-        </span>
+      <div className="flex items-start gap-2 pl-2">
+        {typeof name !== "undefined" && (
+          <span className="font-mono text-[var(--text-primary)]">{String(name)}:</span>
+        )}
+        <span className={clsx("font-mono", getValueTone(value))}>{formatPrimitive(value)}</span>
       </div>
     );
   }
@@ -302,21 +321,28 @@ function JsonNode({ value, name, depth, path }: JsonNodeProps) {
   const [collapsed, setCollapsed] = useState<boolean>(() => depth >= 1);
 
   return (
-    <div className="json-tree__group">
+    <div className="space-y-2">
       <button
         type="button"
-        className="json-tree__toggle"
+        className="flex w-full items-center gap-2 rounded-lg border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition hover:border-[rgba(37,99,235,0.2)] hover:bg-[var(--hover-bg)]"
         onClick={() => setCollapsed((prev) => !prev)}
+        aria-expanded={!collapsed}
       >
-        <span className="json-tree__chevron">
-          {collapsed ? <ChevronRight size={14} strokeWidth={1.8} /> : <ChevronDown size={14} strokeWidth={1.8} />}
+        <span className="flex h-5 w-5 items-center justify-center rounded-md border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)]">
+          {collapsed ? (
+            <ChevronRight size={14} strokeWidth={1.8} className="text-[var(--icon-muted)]" />
+          ) : (
+            <ChevronDown size={14} strokeWidth={1.8} className="text-[var(--icon-muted)]" />
+          )}
         </span>
-        {typeof name !== "undefined" && <span className="json-tree__key">{String(name)}</span>}
-        <span className="json-tree__label">{label}</span>
-        <span className="json-tree__meta">{meta}</span>
+        {typeof name !== "undefined" && (
+          <span className="font-mono text-[var(--text-primary)]">{String(name)}</span>
+        )}
+        <span className="text-xs uppercase tracking-wide text-[var(--text-tertiary)]">{label}</span>
+        <span className="ml-auto text-xs text-[var(--text-tertiary)]">{meta}</span>
       </button>
       {!collapsed && (
-        <div className="json-tree__children">
+        <div className="space-y-2 border-l border-[color:var(--border-subtle)] pl-4">
           {entries.map(([childKey, childValue]) => (
             <JsonNode
               key={`${path}.${String(childKey)}`}
@@ -337,4 +363,20 @@ function formatPrimitive(value: JsonValue): string {
     return `"${value}"`;
   }
   return String(value);
+}
+
+function getValueTone(value: JsonValue): string {
+  if (value === null) {
+    return "text-[var(--text-tertiary)]";
+  }
+  switch (typeof value) {
+    case "string":
+      return "text-[var(--accent)]";
+    case "number":
+      return "text-[var(--accent-strong)]";
+    case "boolean":
+      return "text-[var(--accent)]";
+    default:
+      return "text-[var(--text-secondary)]";
+  }
 }

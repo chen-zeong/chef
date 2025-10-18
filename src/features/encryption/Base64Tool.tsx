@@ -1,6 +1,24 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import clsx from "clsx";
+import {
+  BUTTON_PRIMARY,
+  BUTTON_TOGGLE,
+  BUTTON_TOGGLE_ACTIVE,
+  PANEL_BLOCK,
+  PANEL_BUTTON_GROUP,
+  PANEL_CONTAINER,
+  PANEL_DESCRIPTION,
+  PANEL_ERROR,
+  PANEL_FOOTER,
+  PANEL_GRID,
+  PANEL_HEADER,
+  PANEL_LABEL,
+  PANEL_MUTED,
+  PANEL_RESULT,
+  PANEL_TEXTAREA,
+  PANEL_TITLE
+} from "../../ui/styles";
 
 type Base64Mode = "encode" | "decode";
 
@@ -55,16 +73,16 @@ export function Base64Tool() {
   };
 
   return (
-    <div className="panel">
-      <header className="panel__header">
+    <div className={PANEL_CONTAINER}>
+      <header className={PANEL_HEADER}>
         <div>
-          <h3>Base64 编解码</h3>
-          <p>快速处理文本的 Base64 编码与解码。</p>
+          <h3 className={PANEL_TITLE}>Base64 编解码</h3>
+          <p className={PANEL_DESCRIPTION}>快速处理文本的 Base64 编码与解码。</p>
         </div>
-        <motion.div className="panel__buttons" layout>
+        <motion.div className={PANEL_BUTTON_GROUP} layout>
           <motion.button
             type="button"
-            className={clsx("btn", { "btn--primary": mode === "encode" })}
+            className={clsx(BUTTON_TOGGLE, mode === "encode" && BUTTON_TOGGLE_ACTIVE)}
             whileTap={{ scale: 0.95 }}
             onClick={() => setMode("encode")}
           >
@@ -72,7 +90,7 @@ export function Base64Tool() {
           </motion.button>
           <motion.button
             type="button"
-            className={clsx("btn", { "btn--primary": mode === "decode" })}
+            className={clsx(BUTTON_TOGGLE, mode === "decode" && BUTTON_TOGGLE_ACTIVE)}
             whileTap={{ scale: 0.95 }}
             onClick={() => setMode("decode")}
           >
@@ -81,25 +99,25 @@ export function Base64Tool() {
         </motion.div>
       </header>
 
-      <div className="panel__grid panel__grid--split">
-        <div className="panel__block">
-          <label className="panel__label">{mode === "encode" ? "原始内容" : "Base64 字符串"}</label>
+      <div className={PANEL_GRID}>
+        <div className={PANEL_BLOCK}>
+          <label className={PANEL_LABEL}>{mode === "encode" ? "原始内容" : "Base64 字符串"}</label>
           <textarea
-            className="panel__textarea"
+            className={PANEL_TEXTAREA}
             spellCheck={false}
             value={input}
             onChange={(event) => setInput(event.target.value)}
             placeholder={mode === "encode" ? "请输入要编码的内容" : "请输入 Base64 字符串"}
           />
         </div>
-        <div className="panel__block">
-          <label className="panel__label">{mode === "encode" ? "编码结果" : "解码结果"}</label>
-          <div className={clsx("panel__result", { "panel__muted": !output })}>
+        <div className={PANEL_BLOCK}>
+          <label className={PANEL_LABEL}>{mode === "encode" ? "编码结果" : "解码结果"}</label>
+          <div className={clsx(PANEL_RESULT, !output && PANEL_MUTED)}>
             {output || "结果会显示在这里"}
           </div>
           <motion.button
             type="button"
-            className={clsx("btn", { "btn--disabled": !output })}
+            className={BUTTON_PRIMARY}
             whileTap={{ scale: output ? 0.95 : 1 }}
             onClick={handleCopy}
             disabled={!output}
@@ -109,11 +127,10 @@ export function Base64Tool() {
         </div>
       </div>
 
-      {error && <div className="panel__error">{error}</div>}
-      <footer className="panel__footer">
+      {error && <div className={PANEL_ERROR}>{error}</div>}
+      <footer className={PANEL_FOOTER}>
         <span>使用浏览器原生 Base64 能力 · 支持 UTF-8 文本</span>
       </footer>
     </div>
   );
 }
-

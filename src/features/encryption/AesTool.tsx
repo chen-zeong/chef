@@ -3,6 +3,25 @@ import { motion } from "framer-motion";
 import clsx from "clsx";
 import AES from "crypto-js/aes";
 import Utf8 from "crypto-js/enc-utf8";
+import {
+  BUTTON_GHOST,
+  BUTTON_PRIMARY,
+  BUTTON_TOGGLE,
+  BUTTON_TOGGLE_ACTIVE,
+  PANEL_BLOCK,
+  PANEL_BUTTON_GROUP,
+  PANEL_CONTAINER,
+  PANEL_DESCRIPTION,
+  PANEL_ERROR,
+  PANEL_FOOTER,
+  PANEL_HEADER,
+  PANEL_INPUT,
+  PANEL_LABEL,
+  PANEL_MUTED,
+  PANEL_RESULT,
+  PANEL_TEXTAREA,
+  PANEL_TITLE
+} from "../../ui/styles";
 
 type AesMode = "encrypt" | "decrypt";
 
@@ -56,16 +75,16 @@ export function AesTool() {
   };
 
   return (
-    <div className="panel">
-      <header className="panel__header">
+    <div className={PANEL_CONTAINER}>
+      <header className={PANEL_HEADER}>
         <div>
-          <h3>AES 对称加密</h3>
-          <p>基于密码短语的 AES 加解密，可快速验证文案。</p>
+          <h3 className={PANEL_TITLE}>AES 对称加密</h3>
+          <p className={PANEL_DESCRIPTION}>基于密码短语的 AES 加解密，可快速验证文案。</p>
         </div>
-        <div className="panel__switch">
+        <div className={PANEL_BUTTON_GROUP}>
           <motion.button
             type="button"
-            className={clsx("btn", { "btn--primary": mode === "encrypt" })}
+            className={clsx(BUTTON_TOGGLE, mode === "encrypt" && BUTTON_TOGGLE_ACTIVE)}
             whileTap={{ scale: 0.95 }}
             onClick={() => setMode("encrypt")}
           >
@@ -73,7 +92,7 @@ export function AesTool() {
           </motion.button>
           <motion.button
             type="button"
-            className={clsx("btn", { "btn--primary": mode === "decrypt" })}
+            className={clsx(BUTTON_TOGGLE, mode === "decrypt" && BUTTON_TOGGLE_ACTIVE)}
             whileTap={{ scale: 0.95 }}
             onClick={() => setMode("decrypt")}
           >
@@ -82,10 +101,10 @@ export function AesTool() {
         </div>
       </header>
 
-      <div className="panel__block">
-        <label className="panel__label">{mode === "encrypt" ? "输入明文" : "输入密文"}</label>
+      <div className={PANEL_BLOCK}>
+        <label className={PANEL_LABEL}>{mode === "encrypt" ? "输入明文" : "输入密文"}</label>
         <textarea
-          className="panel__textarea"
+          className={PANEL_TEXTAREA}
           spellCheck={false}
           value={message}
           onChange={(event) => setMessage(event.target.value)}
@@ -93,10 +112,10 @@ export function AesTool() {
         />
       </div>
 
-      <div className="panel__block">
-        <label className="panel__label">密钥 (Passphrase)</label>
+      <div className={PANEL_BLOCK}>
+        <label className={PANEL_LABEL}>密钥 (Passphrase)</label>
         <input
-          className="panel__input"
+          className={PANEL_INPUT}
           type="text"
           spellCheck={false}
           value={key}
@@ -105,18 +124,23 @@ export function AesTool() {
         />
       </div>
 
-      <div className="panel__block">
-        <label className="panel__label">{mode === "encrypt" ? "加密结果" : "解密结果"}</label>
-        <div className={clsx("panel__result", { "panel__muted": !result })}>
+      <div className={PANEL_BLOCK}>
+        <label className={PANEL_LABEL}>{mode === "encrypt" ? "加密结果" : "解密结果"}</label>
+        <div className={clsx(PANEL_RESULT, !result && PANEL_MUTED)}>
           {result || "执行后结果会显示在这里"}
         </div>
-        <div className="panel__actions-inline">
-          <motion.button type="button" className="btn btn--primary" whileTap={{ scale: 0.95 }} onClick={handleRun}>
+        <div className="flex flex-wrap items-center gap-3">
+          <motion.button
+            type="button"
+            className={BUTTON_PRIMARY}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleRun}
+          >
             立即执行
           </motion.button>
           <motion.button
             type="button"
-            className={clsx("btn", { "btn--disabled": !result })}
+            className={BUTTON_GHOST}
             whileTap={{ scale: result ? 0.95 : 1 }}
             onClick={handleCopy}
             disabled={!result}
@@ -126,11 +150,10 @@ export function AesTool() {
         </div>
       </div>
 
-      {error && <div className="panel__error">{error}</div>}
-      <footer className="panel__footer">
+      {error && <div className={PANEL_ERROR}>{error}</div>}
+      <footer className={PANEL_FOOTER}>
         <span>基于 CryptoJS.AES，实现快速口令加密 · 适用于测试验证场景</span>
       </footer>
     </div>
   );
 }
-

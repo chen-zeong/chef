@@ -2,6 +2,25 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import md5 from "crypto-js/md5";
+import {
+  BUTTON_GHOST,
+  BUTTON_PRIMARY,
+  CHIP_ACTIVE,
+  CHIP_BASE,
+  PANEL_BLOCK,
+  PANEL_CONTAINER,
+  PANEL_DESCRIPTION,
+  PANEL_FOOTER,
+  PANEL_GRID,
+  PANEL_HEADER,
+  PANEL_LABEL,
+  PANEL_MUTED,
+  PANEL_OPTION_GROUP,
+  PANEL_OPTIONS,
+  PANEL_RESULT,
+  PANEL_TEXTAREA,
+  PANEL_TITLE
+} from "../../ui/styles";
 
 type CaseStyle = "lower" | "upper";
 type BitLength = 16 | 32;
@@ -47,15 +66,15 @@ export function Md5Tool() {
   };
 
   return (
-    <div className="panel">
-      <header className="panel__header">
+    <div className={PANEL_CONTAINER}>
+      <header className={PANEL_HEADER}>
         <div>
-          <h3>MD5 摘要生成器</h3>
-          <p>支持 16 / 32 位输出及大小写快速切换。</p>
+          <h3 className={PANEL_TITLE}>MD5 摘要生成器</h3>
+          <p className={PANEL_DESCRIPTION}>支持 16 / 32 位输出及大小写快速切换。</p>
         </div>
         <motion.button
           type="button"
-          className="btn btn--ghost"
+          className={BUTTON_GHOST}
           whileTap={{ scale: 0.94 }}
           onClick={() => setInput("")}
         >
@@ -63,11 +82,11 @@ export function Md5Tool() {
         </motion.button>
       </header>
 
-      <div className="panel__grid panel__grid--split">
-        <div className="panel__block">
-          <label className="panel__label">输入文本</label>
+      <div className={PANEL_GRID}>
+        <div className={PANEL_BLOCK}>
+          <label className={PANEL_LABEL}>输入文本</label>
           <textarea
-            className="panel__textarea"
+            className={PANEL_TEXTAREA}
             spellCheck={false}
             value={input}
             placeholder="请输入要加密的内容"
@@ -75,14 +94,14 @@ export function Md5Tool() {
           />
         </div>
 
-        <div className="panel__block">
-          <label className="panel__label">MD5 结果</label>
-          <div className="panel__result">
-            {input ? <span>{digest}</span> : <span className="panel__muted">{emptyMessage}</span>}
+        <div className={PANEL_BLOCK}>
+          <label className={PANEL_LABEL}>MD5 结果</label>
+          <div className={PANEL_RESULT}>
+            {input ? <span>{digest}</span> : <span className={PANEL_MUTED}>{emptyMessage}</span>}
           </div>
           <motion.button
             type="button"
-            className={clsx("btn", { "btn--disabled": !input })}
+            className={BUTTON_PRIMARY}
             whileTap={{ scale: input ? 0.95 : 1 }}
             onClick={handleCopy}
             disabled={!input}
@@ -92,7 +111,7 @@ export function Md5Tool() {
         </div>
       </div>
 
-      <div className="panel__options">
+      <div className={PANEL_OPTIONS}>
         <OptionGroup
           label="位数"
           options={bitOptions}
@@ -107,7 +126,7 @@ export function Md5Tool() {
         />
       </div>
 
-      <footer className="panel__footer">
+      <footer className={PANEL_FOOTER}>
         <span>基于 crypto-js/md5 实现 · 仅用于非安全场景</span>
       </footer>
     </div>
@@ -128,16 +147,16 @@ function OptionGroup<T extends string | number>({
   onSelect
 }: OptionGroupProps<T>) {
   return (
-    <div className="panel__option-group">
-      <span className="panel__label">{label}</span>
-      <div className="panel__chips">
+    <div className={PANEL_OPTION_GROUP}>
+      <span className={PANEL_LABEL}>{label}</span>
+      <div className="flex flex-wrap gap-2">
         {options.map((option) => {
           const active = option.value === current;
           return (
             <motion.button
               key={option.value}
               type="button"
-              className={clsx("chip", { "chip--active": active })}
+              className={clsx(CHIP_BASE, active && CHIP_ACTIVE)}
               onClick={() => onSelect(option.value)}
               whileTap={{ scale: 0.95 }}
               transition={{ type: "spring", stiffness: 360, damping: 28 }}
