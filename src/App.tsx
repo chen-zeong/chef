@@ -27,9 +27,10 @@ import {
   Home,
   Plus,
   Sparkles,
-  Star,
+  Trash2,
   Monitor,
-  PenTool
+  PenTool,
+  ArrowUpRight
 } from "lucide-react";
 import { modules, ModuleMeta, ToolMeta } from "./data/modules";
 import { JsonParser } from "./features/json/JsonParser";
@@ -94,6 +95,23 @@ type ReadyToolOption = {
 
 const FAVORITES_STORAGE_KEY = "chef-favorites";
 
+function splitToolTitle(name: string): [string, string] {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return ["", "\u00A0"];
+  }
+  const spaceIndex = trimmed.indexOf(" ");
+  if (spaceIndex > 0) {
+    const first = trimmed.slice(0, spaceIndex);
+    const second = trimmed.slice(spaceIndex + 1).trim();
+    return [first, second || "\u00A0"];
+  }
+  const mid = Math.ceil(trimmed.length / 2);
+  const first = trimmed.slice(0, mid);
+  const second = trimmed.slice(mid).trim();
+  return [first, second || "\u00A0"];
+}
+
 const isFavoriteSupported = (favorite: FavoriteToolRef) =>
   modules.some(
     (module) =>
@@ -107,8 +125,18 @@ const navIconVariants = {
 };
 
 const navTitleVariants = {
-  expanded: { opacity: 1, x: 0, clipPath: "inset(0% 0% 0% 0%)" },
-  collapsed: { opacity: 0, x: -10, clipPath: "inset(0% 100% 0% 0%)" }
+  expanded: {
+    opacity: 1,
+    x: 0,
+    clipPath: "inset(0% 0% 0% 0%)",
+    transitionEnd: { clipPath: "inset(0% 0% 0% 0%)" }
+  },
+  collapsed: {
+    opacity: 0,
+    x: -10,
+    clipPath: "inset(0% 96% 0% 0%)",
+    transitionEnd: { clipPath: "inset(0% 96% 0% 0%)" }
+  }
 };
 
 const sidebarVariants: Variants = {
@@ -478,7 +506,16 @@ export default function App() {
                 variants={navTitleVariants}
                 initial="collapsed"
                 animate={isSidebarCollapsed ? "collapsed" : "expanded"}
-                transition={{ duration: 0.24, ease: "easeOut" }}
+                transition={{
+                  duration: 0.24,
+                  ease: "easeOut",
+                  clipPath: { duration: 0.26, ease: "easeOut" }
+                }}
+                style={{
+                  WebkitClipPath: isSidebarCollapsed ? "inset(0% 96% 0% 0%)" : "inset(0% 0% 0% 0%)",
+                  clipPath: isSidebarCollapsed ? "inset(0% 96% 0% 0%)" : "inset(0% 0% 0% 0%)",
+                  transformOrigin: "left center"
+                }}
               >
                 主页
               </motion.span>
@@ -512,7 +549,18 @@ export default function App() {
                     variants={navTitleVariants}
                     initial="collapsed"
                     animate={isSidebarCollapsed ? "collapsed" : "expanded"}
-                    transition={{ duration: 0.24, ease: "easeOut" }}
+                    transition={{
+                      duration: 0.24,
+                      ease: "easeOut",
+                      clipPath: { duration: 0.26, ease: "easeOut" }
+                    }}
+                    style={{
+                      WebkitClipPath: isSidebarCollapsed
+                        ? "inset(0% 96% 0% 0%)"
+                        : "inset(0% 0% 0% 0%)",
+                      clipPath: isSidebarCollapsed ? "inset(0% 96% 0% 0%)" : "inset(0% 0% 0% 0%)",
+                      transformOrigin: "left center"
+                    }}
                   >
                     {module.name}
                   </motion.span>
@@ -532,61 +580,63 @@ export default function App() {
           >
             <PanelToggleIcon size={18} strokeWidth={1.8} />
           </button>
-          <div className="topbar__search">
-            <Search size={16} strokeWidth={1.6} />
-            <input
-              type="search"
-              placeholder="搜索工具..."
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-            />
-            {searchTerm && (
-              <button type="button" onClick={() => setSearchTerm("")} aria-label="清除搜索">
-                <X size={16} strokeWidth={1.8} />
-              </button>
-            )}
-            <AnimatePresence>
+          <div className="topbar__center">
+            <div className="topbar__search">
+              <Search size={16} strokeWidth={1.6} />
+              <input
+                type="search"
+                placeholder="搜索工具..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
               {searchTerm && (
-                <motion.ul
-                  className="topbar__search-results"
-                  initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.95 }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
-                >
-                  {toolSearchResults.length > 0 ? (
-                    toolSearchResults.map(({ moduleId, moduleName, tool }) => (
-                      <motion.li
-                        key={tool.id}
-                        className="search-result"
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 8 }}
-                        transition={{ duration: 0.18 }}
-                      >
-                        <button
-                          type="button"
-                          onMouseDown={(event) => {
-                            event.preventDefault();
-                            handleSelectTool(moduleId, tool.id);
-                          }}
-                          className="search-result__button"
-                        >
-                          <span className="search-result__icon">{tool.name.slice(0, 1).toUpperCase()}</span>
-                          <span className="search-result__texts">
-                            <span className="search-result__title">{tool.name}</span>
-                            <span className="search-result__meta">{moduleName}</span>
-                          </span>
-                          <span className="search-result__arrow">↗</span>
-                        </button>
-                      </motion.li>
-                    ))
-                  ) : (
-                    <li className="search-result search-result--empty">暂未找到匹配的工具</li>
-                  )}
-                </motion.ul>
+                <button type="button" onClick={() => setSearchTerm("")} aria-label="清除搜索">
+                  <X size={16} strokeWidth={1.8} />
+                </button>
               )}
-            </AnimatePresence>
+              <AnimatePresence>
+                {searchTerm && (
+                  <motion.ul
+                    className="topbar__search-results"
+                    initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                  >
+                    {toolSearchResults.length > 0 ? (
+                      toolSearchResults.map(({ moduleId, moduleName, tool }) => (
+                        <motion.li
+                          key={tool.id}
+                          className="search-result"
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 8 }}
+                          transition={{ duration: 0.18 }}
+                        >
+                          <button
+                            type="button"
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              handleSelectTool(moduleId, tool.id);
+                            }}
+                            className="search-result__button"
+                          >
+                            <span className="search-result__icon">{tool.name.slice(0, 1).toUpperCase()}</span>
+                            <span className="search-result__texts">
+                              <span className="search-result__title">{tool.name}</span>
+                              <span className="search-result__meta">{moduleName}</span>
+                            </span>
+                            <span className="search-result__arrow">↗</span>
+                          </button>
+                        </motion.li>
+                      ))
+                    ) : (
+                      <li className="search-result search-result--empty">暂未找到匹配的工具</li>
+                    )}
+                  </motion.ul>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
           <div className="topbar__info">
             <motion.button
@@ -596,11 +646,7 @@ export default function App() {
               aria-label={theme === "dark" ? "切换到日间模式" : "切换到夜间模式"}
               whileTap={{ scale: 0.94 }}
               animate={{
-                backgroundColor: theme === "dark" ? "rgba(34, 34, 46, 0.92)" : "rgba(255, 255, 255, 0.1)",
-                boxShadow:
-                  theme === "dark"
-                    ? "0 18px 32px rgba(0, 0, 0, 0.38)"
-                    : "0 16px 28px rgba(186, 196, 224, 0.26)"
+                backgroundColor: theme === "dark" ? "rgba(34, 34, 46, 0.92)" : "rgba(255, 255, 255, 0.1)"
               }}
               transition={{ duration: 0.28, ease: "easeOut" }}
             >
@@ -733,6 +779,7 @@ export default function App() {
                       const isActive = tool.id === activeToolId;
                       const disabled = tool.status !== "ready";
                       const matches = toolMatchesSearch(tool);
+                      const [primaryTitle, secondaryTitle] = splitToolTitle(tool.name);
                       const accentStyles = {
                         "--card-accent-from": activeModule?.accent.from ?? "rgba(37, 99, 235, 0.1)",
                         "--card-accent-to": activeModule?.accent.to ?? "rgba(99, 102, 241, 0.14)"
@@ -801,16 +848,15 @@ export default function App() {
                                 transition={{ type: "spring", stiffness: 320, damping: 26 }}
                               />
                             )}
-                            <span className="tool-card__accent" aria-hidden />
                             <div className="tool-card__header">
-                              <span className="tool-card__name">{tool.name}</span>
+                              <span className="tool-card__name">
+                                <span>{primaryTitle}</span>
+                                <span>{secondaryTitle}</span>
+                              </span>
                               {disabled ? (
                                 <span className="tool-card__status">即将上线</span>
                               ) : null}
                             </div>
-                            {tool.description && (
-                              <p className="tool-card__description">{tool.description}</p>
-                            )}
                           </motion.button>
                         </div>
                       );
@@ -889,6 +935,7 @@ function HomeDashboard({
 }: HomeDashboardProps) {
   const [isPickerOpen, setPickerOpen] = useState(false);
   const [pickerKeyword, setPickerKeyword] = useState("");
+  const [isDeleteMode, setDeleteMode] = useState(false);
 
   const favoriteDetails = useMemo(() => {
     return favorites
@@ -921,6 +968,8 @@ function HomeDashboard({
     });
   }, [availableOptions, pickerKeyword]);
 
+  const favoriteCount = favoriteDetails.length;
+
   const handleClosePicker = useCallback(() => {
     setPickerOpen(false);
     setPickerKeyword("");
@@ -932,6 +981,12 @@ function HomeDashboard({
       setPickerKeyword("");
     }
   }, [availableOptions.length]);
+
+  useEffect(() => {
+    if (!favoriteCount) {
+      setDeleteMode(false);
+    }
+  }, [favoriteCount]);
 
   const handleAddToFavorites = useCallback(
     (option: ReadyToolOption) => {
@@ -948,69 +1003,113 @@ function HomeDashboard({
       exit={{ opacity: 0, y: 12 }}
       transition={{ duration: 0.24, ease: "easeOut" }}
     >
-      <div className="home__favorites">
-        <div className="home__favorites-header">
-          <div className="home__favorites-title">
-            <span className="home__section-title">常用工具</span>
-            <span className="home__section-count">共 {favoriteDetails.length} 个</span>
-          </div>
+      <div className="home__topbar">
+        <div className="home__heading">
+          <span className="home__section-title">收藏工具</span>
+          <span className="home__section-count">共 {favoriteCount} 个</span>
+        </div>
+        <div className="home__actions">
           <motion.button
             type="button"
-            className="home__button"
-            onClick={() => setPickerOpen(true)}
-            whileTap={{ scale: 0.95 }}
-            disabled={!availableOptions.length}
+            className={clsx("home__manage-button", { "home__manage-button--active": isDeleteMode })}
+            onClick={() => {
+              setDeleteMode((prev) => {
+                const next = !prev;
+                if (next) {
+                  handleClosePicker();
+                }
+                return next;
+              });
+            }}
+            disabled={!favoriteCount}
+            whileTap={favoriteCount ? { scale: 0.95 } : undefined}
           >
-            <Plus size={15} strokeWidth={1.8} />
+            <Trash2 size={15} strokeWidth={1.8} />
+            <span>{isDeleteMode ? "完成" : "删除"}</span>
+          </motion.button>
+          <motion.button
+            type="button"
+            className="home__add-button"
+            onClick={() => {
+              setDeleteMode(false);
+              setPickerOpen(true);
+            }}
+            disabled={!availableOptions.length}
+            whileTap={availableOptions.length ? { scale: 0.95 } : undefined}
+          >
+            <Plus size={16} strokeWidth={1.8} />
             <span>添加工具</span>
           </motion.button>
         </div>
-        {favoriteDetails.length ? (
-          <LayoutGroup>
-            <motion.div className="home__favorites-grid" layout>
-              {favoriteDetails.map(({ favorite, option }) => (
-                <motion.article
-                  key={`${favorite.moduleId}-${favorite.toolId}`}
-                  className="home-card"
-                  layout
-                  style={
-                    {
-                      "--home-accent-from": option.accent.from,
-                      "--home-accent-to": option.accent.to
-                    } as CSSProperties
-                  }
-                >
-                  <button
-                    type="button"
-                    className="home-card__launch"
-                    onClick={() => onLaunchFavorite(favorite)}
+      </div>
+
+      <div className="home__content">
+        <motion.div
+          className="home__favorites"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -12 }}
+          transition={{ duration: 0.24, ease: "easeOut" }}
+        >
+          {favoriteCount ? (
+            <LayoutGroup>
+              <motion.div className="home__favorites-grid" layout>
+                {favoriteDetails.map(({ favorite, option }) => (
+                  <motion.article
+                    key={`${favorite.moduleId}-${favorite.toolId}`}
+                    className={clsx("home-card", { "home-card--deleting": isDeleteMode })}
+                    layout
+                    style={
+                      {
+                        "--home-card-accent": option.accent.from ?? "rgba(110,142,255,0.35)",
+                        "--home-card-tint": option.accent.to ?? "rgba(110,142,255,0.12)"
+                      } as CSSProperties
+                    }
                   >
-                    <span className="home-card__badge">
-                      <Star size={13} strokeWidth={1.6} />
-                      {option.moduleName}
-                    </span>
-                    <h3>{option.tool.name}</h3>
-                    <p>{option.tool.description}</p>
-                  </button>
-                  <motion.button
-                    type="button"
-                    className="home-card__remove"
-                    onClick={() => onRemoveFavorite(favorite)}
-                    whileTap={{ scale: 0.9 }}
-                    aria-label={`移除 ${option.tool.name}`}
-                  >
-                    <X size={12} strokeWidth={1.8} />
-                  </motion.button>
-                </motion.article>
-              ))}
-            </motion.div>
-          </LayoutGroup>
-        ) : (
-          <div className="home__favorites-empty">
-            <Sparkles size={18} strokeWidth={1.6} />
-            <p>还没有常用工具，点击右上角添加你常用的功能。</p>
-          </div>
-        )}
+                    <button
+                      type="button"
+                      className="home-card__launch"
+                      onClick={() => !isDeleteMode && onLaunchFavorite(favorite)}
+                      disabled={isDeleteMode}
+                    >
+                      <div className="home-card__top">
+                        <span className="home-card__title">{option.tool.name}</span>
+                        <ArrowUpRight size={16} strokeWidth={1.8} className="home-card__icon" aria-hidden />
+                      </div>
+                      <p className="home-card__description">{option.tool.description}</p>
+                      <div className="home-card__footer">
+                        <span className="home-card__module">{option.moduleName}</span>
+                      </div>
+                    </button>
+                    <AnimatePresence>
+                      {isDeleteMode && (
+                        <motion.button
+                          key="remove"
+                          type="button"
+                          className="home-card__remove"
+                          onClick={() => onRemoveFavorite(favorite)}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          transition={{ duration: 0.18, ease: "easeOut" }}
+                          whileTap={{ scale: 0.9 }}
+                          aria-label={`移除 ${option.tool.name}`}
+                        >
+                          <X size={12} strokeWidth={1.8} />
+                        </motion.button>
+                      )}
+                    </AnimatePresence>
+                  </motion.article>
+                ))}
+              </motion.div>
+            </LayoutGroup>
+          ) : (
+            <div className="home__favorites-empty">
+              <Sparkles size={18} strokeWidth={1.6} />
+              <p>还没有常用工具，点击右上角的添加按钮挑选常用功能。</p>
+            </div>
+          )}
+        </motion.div>
       </div>
 
       <AnimatePresence>

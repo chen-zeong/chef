@@ -78,7 +78,7 @@ export function AesTool() {
     <div className={PANEL_CONTAINER}>
       <header className={PANEL_HEADER}>
         <div>
-          <h3 className={PANEL_TITLE}>AES 对称加密</h3>
+          <h3 className={PANEL_TITLE}>AES 加密</h3>
           <p className={PANEL_DESCRIPTION}>基于密码短语的 AES 加解密，可快速验证文案。</p>
         </div>
         <div className={PANEL_BUTTON_GROUP}>

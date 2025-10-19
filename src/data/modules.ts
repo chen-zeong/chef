@@ -60,7 +60,7 @@ export const modules: ModuleMeta[] = [
       },
       {
         id: "aes",
-        name: "AES 对称加密",
+        name: "AES 加密",
         description: "可配置向量与密钥的 AES 工具。",
         status: "ready"
       },
