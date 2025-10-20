@@ -841,13 +841,6 @@ export default function App() {
                             layout
                             transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.9 }}
                           >
-                            {isActive && (
-                              <motion.span
-                                className="tool-card__ring"
-                                layoutId="tool-card-active-ring"
-                                transition={{ type: "spring", stiffness: 320, damping: 26 }}
-                              />
-                            )}
                             <div className="tool-card__header">
                               <span className="tool-card__name">
                                 <span>{primaryTitle}</span>

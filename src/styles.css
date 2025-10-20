@@ -461,20 +461,25 @@
     position: absolute;
     inset: -8px;
     border-radius: 20px;
-    background: linear-gradient(135deg, rgba(110, 142, 255, 0.42), rgba(142, 219, 255, 0.34));
-    box-shadow: 0 18px 36px rgba(110, 142, 255, 0.22);
+    background: linear-gradient(
+      135deg,
+      rgba(110, 142, 255, 0.48) 0%,
+      rgba(148, 184, 255, 0.32) 52%,
+      rgba(142, 219, 255, 0.18) 100%
+    );
+    box-shadow: 0 18px 36px rgba(110, 142, 255, 0.25);
     pointer-events: none;
     z-index: 0;
   }
 
-  .tool-card__ring {
-    position: absolute;
-    inset: -3px;
-    border-radius: 18px;
-    border: 2px solid rgba(37, 99, 235, 0.4);
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.16);
-    pointer-events: none;
-    z-index: 3;
+  body.theme-dark .tool-card__halo {
+    background: linear-gradient(
+      135deg,
+      rgba(237, 195, 111, 0.56) 0%,
+      rgba(229, 174, 58, 0.38) 54%,
+      rgba(213, 144, 24, 0.22) 100%
+    );
+    box-shadow: 0 18px 36px rgba(237, 195, 111, 0.34);
   }
 
   .tool-card__header {
@@ -617,7 +622,8 @@
   }
 
   .home__favorites {
-    @apply relative flex flex-1 min-h-0 flex-col gap-[0.75rem] overflow-hidden rounded-2xl border border-[rgba(210,216,230,0.32)] bg-[rgba(255,255,255,0.8)] p-[1.1rem] shadow-[0_18px_36px_rgba(15,23,42,0.08)];
+    @apply relative flex flex-1 min-h-0 flex-col gap-[0.6rem] overflow-hidden rounded-[20px] border border-[rgba(210,216,230,0.24)] bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(244,248,255,0.75))] p-[1rem] shadow-[0_20px_36px_rgba(15,23,42,0.08)];
+    backdrop-filter: blur(18px);
   }
 
   .home__section-title {
@@ -648,10 +654,11 @@
   }
 
   .home__favorites-grid {
-    @apply grid flex-1 min-h-0 gap-[0.55rem] overflow-y-auto pr-[0.2rem];
+    @apply grid flex-1 min-h-0 gap-[0.32rem] overflow-y-auto pr-[0.2rem];
     grid-template-columns: repeat(6, minmax(0, 1fr));
     grid-auto-rows: auto;
     scrollbar-width: thin;
+    align-content: start;
   }
 
   .home__favorites-grid::-webkit-scrollbar {
@@ -856,7 +863,7 @@
   }
 
   .home__picker-list {
-    @apply flex max-h-[240px] flex-col gap-[0.45rem] overflow-y-auto pr-[0.2rem];
+    @apply flex max-h-[420px] flex-col gap-[0.45rem] overflow-y-auto pr-[0.2rem];
   }
 
   .home__picker-list::-webkit-scrollbar {
@@ -1017,11 +1024,6 @@
     opacity: 0.85;
   }
 
-  body.theme-dark .tool-card__ring {
-    border-color: rgba(215, 168, 90, 0.5);
-    box-shadow: 0 0 0 4px rgba(215, 168, 90, 0.2);
-  }
-
   body.theme-dark .tool-card__status {
     border-color: rgba(255, 255, 255, 0.12);
     background: rgba(40, 40, 56, 0.85);
@@ -1113,9 +1115,10 @@
   }
 
   body.theme-dark .home__favorites {
-    border-color: rgba(255, 255, 255, 0.08);
-    background: rgba(32, 32, 44, 0.85);
-    box-shadow: 0 22px 40px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(135deg, rgba(30, 31, 46, 0.92), rgba(24, 25, 36, 0.86));
+    box-shadow: 0 28px 52px rgba(0, 0, 0, 0.58);
+    backdrop-filter: blur(18px);
   }
 
   body.theme-dark .home__section-title {
@@ -1127,18 +1130,20 @@
   }
 
   body.theme-dark .home-card {
-    border-color: rgba(96, 150, 255, 0.26);
-    background: rgba(26, 29, 46, 0.9);
+    border-color: var(--home-card-accent, rgba(128, 178, 255, 0.32));
+    background:
+      linear-gradient(150deg, rgba(18, 19, 28, 0.94), rgba(18, 19, 28, 0.88)),
+      linear-gradient(135deg, var(--home-card-tint, rgba(60, 110, 255, 0.22)) 0%, rgba(18, 19, 28, 0) 70%);
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.55);
   }
 
   body.theme-dark .home-card:hover {
-    border-color: rgba(128, 178, 255, 0.42);
+    border-color: var(--home-card-accent, rgba(156, 198, 255, 0.48));
     box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
   }
 
   body.theme-dark .home-card::before {
-    border-color: rgba(128, 178, 255, 0.35);
+    border-color: var(--home-card-accent, rgba(156, 198, 255, 0.4));
   }
 
   body.theme-dark .home-card--deleting {
@@ -1173,13 +1178,13 @@
   }
 
   body.theme-dark .home-card__launch:hover {
-    background: rgba(60, 110, 255, 0.2);
+    background: var(--home-card-tint, rgba(60, 110, 255, 0.2));
   }
 
   body.theme-dark .home-card__module {
-    background: rgba(110, 142, 255, 0.24);
+    background: var(--home-card-tint, rgba(60, 110, 255, 0.24));
     border-color: var(--home-card-accent, rgba(128, 178, 255, 0.45));
-    color: rgba(214, 224, 255, 0.85);
+    color: rgba(235, 240, 255, 0.9);
   }
 
   body.theme-dark .home-card__module::before {
