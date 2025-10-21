@@ -10,7 +10,6 @@ import {
   BUTTON_TOGGLE_ACTIVE,
   PANEL_BLOCK,
   PANEL_BUTTON_GROUP,
-  PANEL_CONTAINER,
   PANEL_DESCRIPTION,
   PANEL_ERROR,
   PANEL_FOOTER,
@@ -75,7 +74,7 @@ export function AesTool() {
   };
 
   return (
-    <div className={PANEL_CONTAINER}>
+    <div className="flex flex-col gap-6">
       <header className={PANEL_HEADER}>
         <div>
           <h3 className={PANEL_TITLE}>AES 加密</h3>

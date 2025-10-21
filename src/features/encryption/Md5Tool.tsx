@@ -8,7 +8,6 @@ import {
   CHIP_ACTIVE,
   CHIP_BASE,
   PANEL_BLOCK,
-  PANEL_CONTAINER,
   PANEL_DESCRIPTION,
   PANEL_FOOTER,
   PANEL_GRID,
@@ -66,7 +65,7 @@ export function Md5Tool() {
   };
 
   return (
-    <div className={PANEL_CONTAINER}>
+    <div className="flex flex-col gap-6">
       <header className={PANEL_HEADER}>
         <div>
           <h3 className={PANEL_TITLE}>MD5 摘要生成器</h3>

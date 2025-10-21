@@ -5,7 +5,6 @@ import {
   BUTTON_GHOST,
   BUTTON_TOGGLE,
   BUTTON_TOGGLE_ACTIVE,
-  PANEL_CONTAINER,
   PANEL_HEADER,
   PANEL_TEXTAREA,
   PANEL_TITLE
@@ -53,7 +52,7 @@ export function UrlCodecTool() {
   };
 
   return (
-    <div className={PANEL_CONTAINER}>
+    <div className="flex flex-col gap-6">
       <header className={PANEL_HEADER}>
         <div>
           <span className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">URL</span>

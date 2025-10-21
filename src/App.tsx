@@ -22,7 +22,7 @@ import {
   Shield,
   Image as ImageIcon,
   Box,
-  Globe2,
+  Earth,
   Check,
   Home,
   Plus,
@@ -144,14 +144,14 @@ const sidebarVariants: Variants = {
     width: 216,
     padding: "1.4rem 1.15rem",
     boxShadow: "0 20px 48px rgba(15, 23, 42, 0.12)",
-    borderRadius: "0 20px 20px 0",
+    borderRadius: "0",
     transition: { type: "spring", stiffness: 180, damping: 22, mass: 1 }
   },
   collapsed: {
     width: 88,
     padding: "1.4rem 0.85rem",
     boxShadow: "0 12px 32px rgba(15, 23, 42, 0.1)",
-    borderRadius: "0 16px 16px 0",
+    borderRadius: "0",
     transition: { type: "spring", stiffness: 260, damping: 30, mass: 0.9 }
   }
 };
@@ -479,6 +479,7 @@ export default function App() {
         animate={isSidebarCollapsed ? "collapsed" : "expanded"}
         initial={false}
         layout
+        data-tauri-drag-region
       >
         <div className="nav__groups">
           <div className="nav__list">
@@ -490,6 +491,7 @@ export default function App() {
               title="主页"
               aria-label="主页"
               layout
+              data-tauri-drag-region="false"
             >
               <motion.span
                 className="nav__icon"
@@ -533,6 +535,7 @@ export default function App() {
                   title={module.name}
                   aria-label={module.name}
                   layout
+                  data-tauri-drag-region="false"
                 >
                   <motion.span
                     className="nav__icon"
@@ -571,26 +574,34 @@ export default function App() {
         </div>
       </motion.aside>
       <div className="main">
-        <header className="topbar">
+        <header className="topbar" data-tauri-drag-region>
           <button
             type="button"
             className="topbar__toggle"
             onClick={() => setSidebarCollapsed((prev) => !prev)}
             aria-label={isSidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
+            data-tauri-drag-region="false"
           >
             <PanelToggleIcon size={18} strokeWidth={1.8} />
           </button>
-          <div className="topbar__center">
-            <div className="topbar__search">
+          <div className="topbar__center" data-tauri-drag-region>
+            <div className="topbar__drag-spacer" data-tauri-drag-region />
+            <div className="topbar__search" data-tauri-drag-region="false">
               <Search size={16} strokeWidth={1.6} />
               <input
                 type="search"
                 placeholder="搜索工具..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
+                data-tauri-drag-region="false"
               />
               {searchTerm && (
-                <button type="button" onClick={() => setSearchTerm("")} aria-label="清除搜索">
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  aria-label="清除搜索"
+                  data-tauri-drag-region="false"
+                >
                   <X size={16} strokeWidth={1.8} />
                 </button>
               )}
@@ -602,6 +613,7 @@ export default function App() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -6, scale: 0.95 }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
+                    data-tauri-drag-region="false"
                   >
                     {toolSearchResults.length > 0 ? (
                       toolSearchResults.map(({ moduleId, moduleName, tool }) => (
@@ -620,6 +632,7 @@ export default function App() {
                               handleSelectTool(moduleId, tool.id);
                             }}
                             className="search-result__button"
+                            data-tauri-drag-region="false"
                           >
                             <span className="search-result__icon">{tool.name.slice(0, 1).toUpperCase()}</span>
                             <span className="search-result__texts">
@@ -637,8 +650,9 @@ export default function App() {
                 )}
               </AnimatePresence>
             </div>
+            <div className="topbar__drag-spacer" data-tauri-drag-region />
           </div>
-          <div className="topbar__info">
+          <div className="topbar__info" data-tauri-drag-region="false">
             <motion.button
               type="button"
               className="topbar__theme"
@@ -649,6 +663,7 @@ export default function App() {
                 backgroundColor: theme === "dark" ? "rgba(34, 34, 46, 0.92)" : "rgba(255, 255, 255, 0.1)"
               }}
               transition={{ duration: 0.28, ease: "easeOut" }}
+              data-tauri-drag-region="false"
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
@@ -663,7 +678,7 @@ export default function App() {
                 </motion.span>
               </AnimatePresence>
             </motion.button>
-            <div className="topbar__lang" ref={langMenuRef}>
+            <div className="topbar__lang" ref={langMenuRef} data-tauri-drag-region="false">
               <motion.button
                 type="button"
                 className="topbar__lang-trigger"
@@ -681,22 +696,22 @@ export default function App() {
                     : "none"
                 }}
                 transition={{ duration: 0.24, ease: "easeOut" }}
+                data-tauri-drag-region="false"
               >
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.span
                     key={language}
                     className="topbar__lang-icon"
-                    initial={{ rotate: -18, opacity: 0, scale: 0.6, color: "var(--icon-muted)" }}
+                    initial={{ opacity: 0, scale: 0.7, color: "var(--text-secondary)" }}
                     animate={{
-                      rotate: isLangMenuOpen ? 10 : 0,
                       opacity: 1,
                       scale: 1,
-                      color: isLangMenuOpen ? "var(--accent)" : "var(--icon-muted)"
+                      color: isLangMenuOpen ? "var(--accent)" : "var(--text-secondary)"
                     }}
-                    exit={{ rotate: 18, opacity: 0, scale: 0.6, color: "var(--icon-muted)" }}
-                    transition={{ duration: 0.24, ease: "easeOut" }}
+                    exit={{ opacity: 0, scale: 0.7, color: "var(--text-secondary)" }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
                   >
-                    <Globe2 size={16} strokeWidth={1.6} />
+                    <Earth size={16} strokeWidth={1.6} />
                   </motion.span>
                 </AnimatePresence>
               </motion.button>
@@ -709,6 +724,7 @@ export default function App() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -8, scale: 0.95 }}
                     transition={{ duration: 0.18, ease: "easeOut" }}
+                    data-tauri-drag-region="false"
                   >
                     <LayoutGroup>
                       {languageOptions.map((option) => {
@@ -1047,53 +1063,59 @@ function HomeDashboard({
           {favoriteCount ? (
             <LayoutGroup>
               <motion.div className="home__favorites-grid" layout>
-                {favoriteDetails.map(({ favorite, option }) => (
-                  <motion.article
-                    key={`${favorite.moduleId}-${favorite.toolId}`}
-                    className={clsx("home-card", { "home-card--deleting": isDeleteMode })}
-                    layout
-                    style={
-                      {
-                        "--home-card-accent": option.accent.from ?? "rgba(110,142,255,0.35)",
-                        "--home-card-tint": option.accent.to ?? "rgba(110,142,255,0.12)"
-                      } as CSSProperties
-                    }
-                  >
-                    <button
-                      type="button"
-                      className="home-card__launch"
-                      onClick={() => !isDeleteMode && onLaunchFavorite(favorite)}
-                      disabled={isDeleteMode}
+                <AnimatePresence mode="popLayout">
+                  {favoriteDetails.map(({ favorite, option }) => (
+                    <motion.article
+                      key={`${favorite.moduleId}-${favorite.toolId}`}
+                      className={clsx("home-card", { "home-card--deleting": isDeleteMode })}
+                      layout
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 40, scale: 0.9, rotateX: 8 }}
+                      transition={{ duration: 0.26, ease: "easeOut" }}
+                      style={
+                        {
+                          "--home-card-accent": option.accent.from ?? "rgba(110,142,255,0.35)",
+                          "--home-card-tint": option.accent.to ?? "rgba(110,142,255,0.12)"
+                        } as CSSProperties
+                      }
                     >
-                      <div className="home-card__top">
-                        <span className="home-card__title">{option.tool.name}</span>
-                        <ArrowUpRight size={16} strokeWidth={1.8} className="home-card__icon" aria-hidden />
-                      </div>
-                      <p className="home-card__description">{option.tool.description}</p>
-                      <div className="home-card__footer">
-                        <span className="home-card__module">{option.moduleName}</span>
-                      </div>
-                    </button>
-                    <AnimatePresence>
-                      {isDeleteMode && (
-                        <motion.button
-                          key="remove"
-                          type="button"
-                          className="home-card__remove"
-                          onClick={() => onRemoveFavorite(favorite)}
-                          initial={{ opacity: 0, scale: 0.8 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.8 }}
-                          transition={{ duration: 0.18, ease: "easeOut" }}
-                          whileTap={{ scale: 0.9 }}
-                          aria-label={`移除 ${option.tool.name}`}
-                        >
-                          <X size={12} strokeWidth={1.8} />
-                        </motion.button>
-                      )}
-                    </AnimatePresence>
-                  </motion.article>
-                ))}
+                      <button
+                        type="button"
+                        className="home-card__launch"
+                        onClick={() => !isDeleteMode && onLaunchFavorite(favorite)}
+                        disabled={isDeleteMode}
+                      >
+                        <div className="home-card__top">
+                          <span className="home-card__title">{option.tool.name}</span>
+                          <ArrowUpRight size={16} strokeWidth={1.8} className="home-card__icon" aria-hidden />
+                        </div>
+                        <p className="home-card__description">{option.tool.description}</p>
+                        <div className="home-card__footer">
+                          <span className="home-card__module">{option.moduleName}</span>
+                        </div>
+                      </button>
+                      <AnimatePresence>
+                        {isDeleteMode && (
+                          <motion.button
+                            key="remove"
+                            type="button"
+                            className="home-card__remove"
+                            onClick={() => onRemoveFavorite(favorite)}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ duration: 0.18, ease: "easeOut" }}
+                            whileTap={{ scale: 0.9 }}
+                            aria-label={`移除 ${option.tool.name}`}
+                          >
+                            <X size={12} strokeWidth={1.8} />
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
+                    </motion.article>
+                  ))}
+                </AnimatePresence>
               </motion.div>
             </LayoutGroup>
           ) : (
