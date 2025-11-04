@@ -7,9 +7,11 @@ use std::{
     process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
+#[cfg(target_os = "macos")]
+use std::sync::{Mutex, OnceLock};
 use tauri::{
     async_runtime, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size, WebviewUrl,
-    WebviewWindowBuilder,
+    WebviewWindow, WebviewWindowBuilder,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -72,114 +74,129 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
         return Err("未能获取显示器信息".into());
     }
 
-    let desired_labels: Vec<String> = (0..monitors.len())
-        .map(|index| {
-            if index == 0 {
-                "region-overlay".to_string()
-            } else {
-                format!("region-overlay-{}", index)
+    apply_overlay_presentation(true);
+    let init_result = (|| -> Result<(), String> {
+        let desired_labels: Vec<String> = (0..monitors.len())
+            .map(|index| {
+                if index == 0 {
+                    "region-overlay".to_string()
+                } else {
+                    format!("region-overlay-{}", index)
+                }
+            })
+            .collect();
+
+        for (index, (label, monitor)) in desired_labels
+            .iter()
+            .zip(monitors.iter())
+            .enumerate()
+        {
+            let size = *monitor.size();
+            let position = *monitor.position();
+            let scale_factor = monitor.scale_factor();
+
+            let logical_width = size.width as f64 / scale_factor;
+            let logical_height = size.height as f64 / scale_factor;
+            let logical_x = position.x as f64 / scale_factor;
+            let logical_y = position.y as f64 / scale_factor;
+
+            let logical_size = LogicalSize::new(logical_width, logical_height);
+            let logical_position = LogicalPosition::new(logical_x, logical_y);
+
+            let metadata = OverlayMetadata {
+                origin_x: position.x,
+                origin_y: position.y,
+                width: size.width,
+                height: size.height,
+                scale_factor,
+                logical_origin_x: logical_x,
+                logical_origin_y: logical_y,
+                logical_width,
+                logical_height,
+            };
+
+            if let Some(existing) = app.get_webview_window(label) {
+                existing
+                    .set_size(Size::Logical(logical_size))
+                    .map_err(|error| error.to_string())?;
+                existing
+                    .set_position(Position::Logical(logical_position))
+                    .map_err(|error| error.to_string())?;
+                existing
+                    .set_always_on_top(true)
+                    .map_err(|error| error.to_string())?;
+                elevate_overlay_window(&existing)?;
+                existing.show().map_err(|error| error.to_string())?;
+                let _ = app.emit_to(label, "overlay-metadata", &metadata);
+
+                if index == 0 {
+                    existing
+                        .set_focus()
+                        .map_err(|error| error.to_string())?;
+                }
+                continue;
             }
-        })
-        .collect();
 
-    for (index, (label, monitor)) in desired_labels
-        .iter()
-        .zip(monitors.iter())
-        .enumerate()
-    {
-        let size = *monitor.size();
-        let position = *monitor.position();
-        let scale_factor = monitor.scale_factor();
+            let url = format!(
+                "/index.html?window=overlay&origin_x={}&origin_y={}&width={}&height={}&scale={}&logical_origin_x={}&logical_origin_y={}&logical_width={}&logical_height={}",
+                position.x,
+                position.y,
+                size.width,
+                size.height,
+                scale_factor,
+                logical_x,
+                logical_y,
+                logical_width,
+                logical_height
+            );
 
-        let logical_width = size.width as f64 / scale_factor;
-        let logical_height = size.height as f64 / scale_factor;
-        let logical_x = position.x as f64 / scale_factor;
-        let logical_y = position.y as f64 / scale_factor;
-
-        let logical_size = LogicalSize::new(logical_width, logical_height);
-        let logical_position = LogicalPosition::new(logical_x, logical_y);
-
-        let metadata = OverlayMetadata {
-            origin_x: position.x,
-            origin_y: position.y,
-            width: size.width,
-            height: size.height,
-            scale_factor,
-            logical_origin_x: logical_x,
-            logical_origin_y: logical_y,
-            logical_width,
-            logical_height,
-        };
-
-        if let Some(existing) = app.get_webview_window(label) {
-            existing
-                .set_size(Size::Logical(logical_size))
+            let window = WebviewWindowBuilder::new(&app, label.as_str(), WebviewUrl::App(url.into()))
+                .title("Region Capture Overlay")
+                .transparent(true)
+                .decorations(false)
+                .resizable(false)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .position(logical_x, logical_y)
+                .inner_size(logical_width, logical_height)
+                .visible(true)
+                .build()
                 .map_err(|error| error.to_string())?;
-            existing
-                .set_position(Position::Logical(logical_position))
-                .map_err(|error| error.to_string())?;
-            existing
-                .set_always_on_top(true)
-                .map_err(|error| error.to_string())?;
-            existing.show().map_err(|error| error.to_string())?;
+
+            elevate_overlay_window(&window)?;
+
             let _ = app.emit_to(label, "overlay-metadata", &metadata);
 
             if index == 0 {
-                existing
+                window
                     .set_focus()
                     .map_err(|error| error.to_string())?;
             }
-            continue;
         }
 
-        let url = format!(
-            "/index.html?window=overlay&origin_x={}&origin_y={}&width={}&height={}&scale={}&logical_origin_x={}&logical_origin_y={}&logical_width={}&logical_height={}",
-            position.x,
-            position.y,
-            size.width,
-            size.height,
-            scale_factor,
-            logical_x,
-            logical_y,
-            logical_width,
-            logical_height
-        );
+        let existing_labels: Vec<String> = app
+            .webview_windows()
+            .keys()
+            .filter(|label| label.starts_with("region-overlay"))
+            .cloned()
+            .collect();
 
-        let window = WebviewWindowBuilder::new(&app, label.as_str(), WebviewUrl::App(url.into()))
-            .title("Region Capture Overlay")
-            .transparent(true)
-            .decorations(false)
-            .resizable(false)
-            .always_on_top(true)
-            .skip_taskbar(true)
-            .position(logical_x, logical_y)
-            .inner_size(logical_width, logical_height)
-            .visible(true)
-            .build()
-            .map_err(|error| error.to_string())?;
-
-        let _ = app.emit_to(label, "overlay-metadata", &metadata);
-
-        if index == 0 {
-            window
-                .set_focus()
-                .map_err(|error| error.to_string())?;
-        }
-    }
-
-    let existing_labels: Vec<String> = app
-        .webview_windows()
-        .keys()
-        .filter(|label| label.starts_with("region-overlay"))
-        .cloned()
-        .collect();
-
-    for label in existing_labels {
-        if !desired_labels.iter().any(|wanted| wanted == &label) {
-            if let Some(window) = app.get_webview_window(label.as_str()) {
-                let _ = window.close();
+        for label in existing_labels {
+            if !desired_labels.iter().any(|wanted| wanted == &label) {
+                if let Some(window) = app.get_webview_window(label.as_str()) {
+                    let _ = window.close();
+                }
             }
         }
+
+        Ok(())
+    })();
+
+    if let Err(error) = init_result {
+        if overlay_labels(&app).is_empty() {
+            apply_overlay_presentation(false);
+        }
+        return Err(error);
     }
 
     Ok(())
@@ -329,6 +346,61 @@ fn capture_region_internal(_: &CaptureRegion) -> Result<CaptureOutput, String> {
     Err("当前平台暂未实现框选截图。".into())
 }
 
+#[cfg(target_os = "macos")]
+fn elevate_overlay_window(window: &WebviewWindow) -> Result<(), String> {
+    use objc2_app_kit::{NSScreenSaverWindowLevel, NSWindow};
+
+    unsafe {
+        let ns_ptr = window
+            .ns_window()
+            .map_err(|error| error.to_string())? as *mut NSWindow;
+        if let Some(reference) = ns_ptr.as_ref() {
+            reference.setLevel(NSScreenSaverWindowLevel);
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn elevate_overlay_window(_: &WebviewWindow) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn apply_overlay_presentation(enable: bool) {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApp, NSApplicationPresentationOptions};
+
+    fn state() -> &'static Mutex<Option<usize>> {
+        static STORE: OnceLock<Mutex<Option<usize>>> = OnceLock::new();
+        STORE.get_or_init(|| Mutex::new(None))
+    }
+
+    if let Some(mtm) = MainThreadMarker::new() {
+        let app = NSApp(mtm);
+        if let Ok(mut slot) = state().lock() {
+            if enable {
+                if slot.is_none() {
+                    let current = app.presentationOptions().bits() as usize;
+                    *slot = Some(current);
+                }
+                let mut options = NSApplicationPresentationOptions::HideMenuBar;
+                options |= NSApplicationPresentationOptions::DisableMenuBarTransparency;
+                app.setPresentationOptions(options);
+            } else if let Some(saved) = slot.take() {
+                let restored = NSApplicationPresentationOptions::from_bits_retain(saved as _);
+                app.setPresentationOptions(restored);
+            } else {
+                app.setPresentationOptions(NSApplicationPresentationOptions::Default);
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn apply_overlay_presentation(_: bool) {}
+
 fn temporary_file_path() -> PathBuf {
     let now = current_timestamp_millis();
     std::env::temp_dir().join(format!("chef-region-{now}.png"))
@@ -348,6 +420,8 @@ fn close_overlay_windows(app: &tauri::AppHandle) {
             let _ = window.close();
         }
     }
+
+    apply_overlay_presentation(false);
 }
 
 fn hide_overlay_windows(app: &tauri::AppHandle) -> Result<Vec<String>, tauri::Error> {
