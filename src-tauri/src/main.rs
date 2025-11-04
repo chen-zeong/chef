@@ -35,6 +35,16 @@ struct CaptureSuccessPayload {
     logical_height: u32,
 }
 
+#[derive(Debug, Deserialize)]
+struct FinalizeCaptureRequest {
+    path: String,
+    base64: String,
+    width: u32,
+    height: u32,
+    logical_width: u32,
+    logical_height: u32,
+}
+
 #[derive(Debug, Serialize)]
 struct OverlayMetadata {
     origin_x: i32,
@@ -206,14 +216,14 @@ async fn capture_region(
             }
         };
 
-    close_overlay_windows(&app);
-
     let logical_width = region.width;
     let logical_height = region.height;
     let physical_width =
         ((region.width as f64) * region.scale_x).round().max(1.0) as u32;
     let physical_height =
         ((region.height as f64) * region.scale_y).round().max(1.0) as u32;
+
+    let _ = show_overlay_windows(&app, &hidden_labels);
 
     let payload = CaptureSuccessPayload {
         path: capture_result.path.to_string_lossy().into_owned(),
@@ -225,8 +235,44 @@ async fn capture_region(
         created_at: current_timestamp_millis(),
     };
 
-    app.emit_to("main", "region-capture-complete", &payload)
-        .ok();
+    Ok(payload)
+}
+
+#[tauri::command]
+async fn finalize_region_capture(
+    app: tauri::AppHandle,
+    request: FinalizeCaptureRequest,
+) -> Result<CaptureSuccessPayload, String> {
+    use base64::engine::general_purpose::STANDARD as BASE64;
+    use base64::Engine;
+
+    let trimmed = request
+        .base64
+        .strip_prefix("data:image/png;base64,")
+        .unwrap_or(&request.base64);
+
+    let bytes = BASE64
+        .decode(trimmed)
+        .map_err(|error| format!("解析截图数据失败：{error}"))?;
+
+    let target_path = PathBuf::from(&request.path);
+    fs::write(&target_path, &bytes)
+        .map_err(|error| format!("保存截图文件失败：{error}"))?;
+
+    let payload = CaptureSuccessPayload {
+        path: target_path.to_string_lossy().into_owned(),
+        base64: trimmed.to_string(),
+        width: request.width,
+        height: request.height,
+        logical_width: request.logical_width,
+        logical_height: request.logical_height,
+        created_at: current_timestamp_millis(),
+    };
+
+    app.emit("region-capture-complete", &payload)
+        .map_err(|error| error.to_string())?;
+
+    close_overlay_windows(&app);
 
     Ok(payload)
 }
@@ -335,7 +381,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             show_region_capture_overlay,
             cancel_region_capture,
-            capture_region
+            capture_region,
+            finalize_region_capture
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

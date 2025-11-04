@@ -9,21 +9,12 @@ import {
   PANEL_DESCRIPTION,
   PANEL_TITLE
 } from "../../ui/styles";
-
-type CapturePayload = {
-  path: string;
-  base64: string;
-  width: number;
-  height: number;
-  logical_width: number;
-  logical_height: number;
-  created_at: number;
-};
+import type { CaptureSuccessPayload } from "./region-capture/regionCaptureTypes";
 
 export function ScreenshotTool() {
   const [isLaunching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastCapture, setLastCapture] = useState<CapturePayload | null>(null);
+  const [lastCapture, setLastCapture] = useState<CaptureSuccessPayload | null>(null);
 
   const handleStartCapture = async () => {
     setError(null);
@@ -43,7 +34,7 @@ export function ScreenshotTool() {
     let mounted = true;
 
     const setupListener = async () => {
-      const unlisten = await listen<CapturePayload>("region-capture-complete", (event) => {
+      const unlisten = await listen<CaptureSuccessPayload>("region-capture-complete", (event) => {
         if (!mounted) {
           return;
         }
@@ -100,7 +91,8 @@ export function ScreenshotTool() {
           使用提示
         </h4>
         <ul className="list-inside list-disc space-y-2">
-          <li>按住鼠标左键拖拽完成框选，松开即截图。</li>
+          <li>按住鼠标左键拖拽完成框选，松开后立即进入标注模式。</li>
+          <li>工具栏支持画线、矩形、圈选、画笔与马赛克效果，可逐步撤销。</li>
           <li>按 Esc 可随时取消并退出截屏模式。</li>
           <li>截图会保存在系统临时目录，并在下方展示预览与路径。</li>
         </ul>
