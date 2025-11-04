@@ -565,7 +565,7 @@ export function RegionCaptureOverlay() {
 
       {!isEditing && activeRect && (
         <div
-          className="absolute border-2 border-[rgba(80,160,255,0.95)] bg-transparent shadow-[0_0_0_1px_rgba(255,255,255,0.4)]"
+          className="absolute bg-transparent shadow-[inset_0_0_0_1px_rgba(255,255,255,0.4)]"
           style={selectionStyle}
           onPointerDown={selection ? handleSelectionPointerDown : undefined}
         >
@@ -609,7 +609,7 @@ export function RegionCaptureOverlay() {
       {isEditing && captureResult && inlineRect && (
         <div className="pointer-events-none absolute inset-0">
           <div
-            className="pointer-events-auto absolute rounded-[18px] border border-[rgba(80,160,255,0.4)] shadow-[0_12px_30px_rgba(15,23,42,0.35)]"
+            className="pointer-events-auto absolute rounded-[18px] shadow-[0_12px_30px_rgba(15,23,42,0.35)]"
             style={{
               left: `${inlineRect.x}px`,
               top: `${inlineRect.y}px`,
