@@ -90,6 +90,15 @@
   body {
     @apply m-0 h-full min-h-screen overflow-hidden bg-[var(--app-bg)] text-[var(--text-primary)] transition-colors duration-300 ease-in-out;
   }
+
+  body.region-capture-overlay {
+    background: rgba(38, 41, 51, 0.48);
+    cursor: crosshair;
+  }
+
+  body.region-capture-overlay--hidden {
+    opacity: 0;
+  }
 }
 
 @layer components {

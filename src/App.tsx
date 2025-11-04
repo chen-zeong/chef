@@ -43,6 +43,7 @@ import { EnvVarTool } from "./features/system/EnvVarTool";
 import { AwakeTool } from "./features/system/AwakeTool";
 import { SvgPreviewTool } from "./features/icons/SvgPreviewTool";
 import { IconConverterTool } from "./features/icons/IconConverterTool";
+import { ScreenshotTool } from "./features/system/ScreenshotTool";
 
 const toolRegistry: Record<string, ComponentType> = {
   "json-parser": JsonParser,
@@ -53,6 +54,7 @@ const toolRegistry: Record<string, ComponentType> = {
   "host-manager": HostsTool,
   "env-editor": EnvVarTool,
   "stay-awake": AwakeTool,
+  "region-screenshot": ScreenshotTool,
   "svg-preview": SvgPreviewTool,
   "icon-converter": IconConverterTool
 };

@@ -123,6 +123,12 @@ export const modules: ModuleMeta[] = [
         name: "电脑常亮",
         description: "保持屏幕常亮，避免自动睡眠。",
         status: "ready"
+      },
+      {
+        id: "region-screenshot",
+        name: "框选截图",
+        description: "启动全屏遮罩，为框选截图交互做准备。",
+        status: "ready"
       }
     ]
   },
