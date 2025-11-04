@@ -92,7 +92,7 @@
   }
 
   body.region-capture-overlay {
-    background: rgba(38, 41, 51, 0.48);
+    background: transparent;
     cursor: crosshair;
   }
 

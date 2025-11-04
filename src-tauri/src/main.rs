@@ -5,7 +5,6 @@ use std::{
     fs,
     io,
     path::PathBuf,
-    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 #[cfg(target_os = "macos")]
@@ -13,6 +12,14 @@ use std::sync::{Mutex, OnceLock};
 use tauri::{
     async_runtime, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size, WebviewUrl,
     WebviewWindow, WebviewWindowBuilder,
+};
+#[cfg(target_os = "macos")]
+use objc2_core_foundation::{CGPoint, CGRect, CGSize};
+#[cfg(target_os = "macos")]
+#[allow(deprecated)]
+use objc2_core_graphics::{
+    CGDataProvider, CGDirectDisplayID, CGDisplayBounds, CGImage, CGWindowID,
+    CGWindowImageOption, CGWindowListCreateImage, CGWindowListOption,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -316,32 +323,122 @@ fn current_timestamp_millis() -> u128 {
 
 #[cfg(target_os = "macos")]
 fn capture_region_internal(region: &CaptureRegion) -> Result<CaptureOutput, String> {
+    use xcap::Monitor;
+
+    let point_x = i32::try_from(region.x)
+        .map_err(|_| "选区位置超出支持范围，请重试。".to_string())?;
+    let point_y = i32::try_from(region.y)
+        .map_err(|_| "选区位置超出支持范围，请重试。".to_string())?;
+
+    let monitor = Monitor::from_point(point_x, point_y)
+        .map_err(|error| format!("未能确定显示器：{error}"))?;
+
+    let monitor_x = monitor
+        .x()
+        .map_err(|error| format!("获取显示器信息失败：{error}"))?;
+    let monitor_y = monitor
+        .y()
+        .map_err(|error| format!("获取显示器信息失败：{error}"))?;
+
+    let offset_x = subtract_logical(region.x, monitor_x)?;
+    let offset_y = subtract_logical(region.y, monitor_y)?;
+    let display_id = monitor
+        .id()
+        .map_err(|error| format!("获取显示器信息失败：{error}"))?;
+
+    let (rgba, width, height) = capture_rgba_via_core_graphics(
+        display_id,
+        monitor_x,
+        monitor_y,
+        offset_x,
+        offset_y,
+        region.width,
+        region.height,
+    )?;
+
+    persist_capture_output(width, height, rgba)
+}
+
+#[cfg(target_os = "windows")]
+fn capture_region_internal(region: &CaptureRegion) -> Result<CaptureOutput, String> {
+    use xcap::Monitor;
+
+    let point_x = i32::try_from(region.x)
+        .map_err(|_| "选区位置超出支持范围，请重试。".to_string())?;
+    let point_y = i32::try_from(region.y)
+        .map_err(|_| "选区位置超出支持范围，请重试。".to_string())?;
+
+    let monitor = Monitor::from_point(point_x, point_y)
+        .map_err(|error| format!("未能确定显示器：{error}"))?;
+
+    let monitor_x = monitor
+        .x()
+        .map_err(|error| format!("获取显示器信息失败：{error}"))?;
+    let monitor_y = monitor
+        .y()
+        .map_err(|error| format!("获取显示器信息失败：{error}"))?;
+
+    let offset_x = subtract_logical(region.x, monitor_x)?;
+    let offset_y = subtract_logical(region.y, monitor_y)?;
+
+    let image = monitor
+        .capture_region(offset_x, offset_y, region.width, region.height)
+        .map_err(|error| format!("截取屏幕区域失败：{error}"))?;
+
+    let width = image.width();
+    let height = image.height();
+    persist_capture_output(width, height, image.into_raw())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn capture_region_internal(_: &CaptureRegion) -> Result<CaptureOutput, String> {
+    Err("当前平台暂未实现框选截图。".into())
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn subtract_logical(value: u32, monitor_origin: i32) -> Result<u32, String> {
+    let offset = (value as i64) - (monitor_origin as i64);
+    if offset < 0 {
+        Err("选区超出显示器边界，请重试。".into())
+    } else {
+        u32::try_from(offset).map_err(|_| "选区位置超出支持范围，请重试。".into())
+    }
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn encode_rgba_png(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, String> {
+    use png::{BitDepth, ColorType, Encoder};
+
+    let mut buffer = Vec::new();
+    {
+        let mut encoder = Encoder::new(&mut buffer, width, height);
+        encoder.set_color(ColorType::Rgba);
+        encoder.set_depth(BitDepth::Eight);
+        let mut writer = encoder
+            .write_header()
+            .map_err(|error| format!("编码截图失败：{error}"))?;
+        writer
+            .write_image_data(data)
+            .map_err(|error| format!("编码截图失败：{error}"))?;
+    }
+    Ok(buffer)
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn persist_capture_output(
+    width: u32,
+    height: u32,
+    rgba: Vec<u8>,
+) -> Result<CaptureOutput, String> {
     use base64::engine::general_purpose::STANDARD as BASE64;
     use base64::Engine;
 
+    let png_bytes = encode_rgba_png(width, height, &rgba)?;
     let target_path = temporary_file_path();
-    let rect_arg = format!(
-        "-R{},{},{},{}",
-        region.x, region.y, region.width, region.height
-    );
+    fs::write(&target_path, &png_bytes)
+        .map_err(|error| format!("保存截图文件失败：{error}"))?;
 
-    let status = Command::new("screencapture")
-        .arg("-x")
-        .arg("-t")
-        .arg("png")
-        .arg(rect_arg)
-        .arg(&target_path)
-        .status()
-        .map_err(|error| format!("无法调用系统截图工具：{error}"))?;
-
-    if !status.success() {
-        return Err(format!("系统截图工具执行失败，退出码：{}", status));
-    }
-
-    let bytes = fs::read(&target_path)
-        .map_err(|error| format!("读取截图文件失败：{error}"))?;
-
-    let base64 = BASE64.encode(&bytes);
+    let base64 = BASE64.encode(&png_bytes);
 
     Ok(CaptureOutput {
         path: target_path,
@@ -349,9 +446,71 @@ fn capture_region_internal(region: &CaptureRegion) -> Result<CaptureOutput, Stri
     })
 }
 
-#[cfg(not(target_os = "macos"))]
-fn capture_region_internal(_: &CaptureRegion) -> Result<CaptureOutput, String> {
-    Err("当前平台暂未实现框选截图。".into())
+#[cfg(target_os = "macos")]
+fn capture_rgba_via_core_graphics(
+    display_id: u32,
+    monitor_origin_x: i32,
+    monitor_origin_y: i32,
+    offset_x: u32,
+    offset_y: u32,
+    width: u32,
+    height: u32,
+) -> Result<(Vec<u8>, u32, u32), String> {
+    let display_id = display_id as CGDirectDisplayID;
+    let bounds = CGDisplayBounds(display_id);
+
+    let max_width = bounds.size.width.max(0.0);
+    let max_height = bounds.size.height.max(0.0);
+    let requested_right = (offset_x as f64) + (width as f64);
+    let requested_bottom = (offset_y as f64) + (height as f64);
+    if requested_right > max_width + 1.0 || requested_bottom > max_height + 1.0 {
+        return Err("截取屏幕区域失败：选区超出显示器范围。".into());
+    }
+
+    let rect = CGRect {
+        origin: CGPoint {
+            x: monitor_origin_x as f64 + offset_x as f64,
+            y: monitor_origin_y as f64 + offset_y as f64,
+        },
+        size: CGSize {
+            width: width as f64,
+            height: height as f64,
+        },
+    };
+
+    #[allow(deprecated)]
+    let cg_image = CGWindowListCreateImage(
+        rect,
+        CGWindowListOption::OptionOnScreenOnly,
+        0 as CGWindowID,
+        CGWindowImageOption::Default,
+    )
+    .ok_or_else(|| "截取屏幕区域失败：未能生成图像。".to_string())?;
+
+    let width = CGImage::width(Some(&cg_image)) as u32;
+    let height = CGImage::height(Some(&cg_image)) as u32;
+    let bytes_per_row = CGImage::bytes_per_row(Some(&cg_image));
+    let data_provider = CGImage::data_provider(Some(&cg_image))
+        .ok_or_else(|| "截取屏幕区域失败：未能访问图像数据。".to_string())?;
+    let data = CGDataProvider::data(Some(&data_provider))
+        .ok_or_else(|| "截取屏幕区域失败：未能获取像素数据。".to_string())?
+        .to_vec();
+
+    if width == 0 || height == 0 {
+        return Err("截取屏幕区域失败：区域尺寸无效。".into());
+    }
+
+    let mut buffer = Vec::with_capacity((width as usize) * (height as usize) * 4);
+    let bytes_per_pixel_row = (width as usize) * 4;
+    for row in data.chunks_exact(bytes_per_row) {
+        buffer.extend_from_slice(&row[..bytes_per_pixel_row]);
+    }
+
+    for chunk in buffer.chunks_exact_mut(4) {
+        chunk.swap(0, 2);
+    }
+
+    Ok((buffer, width, height))
 }
 
 #[cfg(target_os = "macos")]
