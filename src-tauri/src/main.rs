@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
+    io,
     path::PathBuf,
     process::Command,
     time::{SystemTime, UNIX_EPOCH},
@@ -122,9 +123,7 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
                 existing
                     .set_position(Position::Logical(logical_position))
                     .map_err(|error| error.to_string())?;
-                existing
-                    .set_always_on_top(true)
-                    .map_err(|error| error.to_string())?;
+                apply_window_level(&existing, false)?;
                 elevate_overlay_window(&existing)?;
                 existing.show().map_err(|error| error.to_string())?;
                 let _ = app.emit_to(label, "overlay-metadata", &metadata);
@@ -164,6 +163,7 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
                 .map_err(|error| error.to_string())?;
 
             elevate_overlay_window(&window)?;
+            apply_window_level(&window, false)?;
 
             let _ = app.emit_to(label, "overlay-metadata", &metadata);
 
@@ -294,6 +294,14 @@ async fn finalize_region_capture(
     Ok(payload)
 }
 
+#[tauri::command]
+async fn set_current_window_always_on_top(
+    window: tauri::WebviewWindow,
+    allow_input_panel: bool,
+) -> Result<(), String> {
+    apply_window_level(&window, allow_input_panel)
+}
+
 struct CaptureOutput {
     path: PathBuf,
     base64: String,
@@ -347,15 +355,28 @@ fn capture_region_internal(_: &CaptureRegion) -> Result<CaptureOutput, String> {
 }
 
 #[cfg(target_os = "macos")]
-fn elevate_overlay_window(window: &WebviewWindow) -> Result<(), String> {
-    use objc2_app_kit::{NSScreenSaverWindowLevel, NSWindow};
+fn apply_window_level(window: &WebviewWindow, allow_input_panel: bool) -> Result<(), String> {
+    use objc2_app_kit::{
+        NSWindow, NSWindowCollectionBehavior, NSStatusWindowLevel,
+    };
 
     unsafe {
         let ns_ptr = window
             .ns_window()
             .map_err(|error| error.to_string())? as *mut NSWindow;
         if let Some(reference) = ns_ptr.as_ref() {
-            reference.setLevel(NSScreenSaverWindowLevel);
+            let target_level = if allow_input_panel {
+                20isize
+            } else {
+                (NSStatusWindowLevel + 1) as isize
+            };
+            reference.setLevel(target_level);
+            reference.setCollectionBehavior(
+                NSWindowCollectionBehavior::CanJoinAllSpaces
+                    | NSWindowCollectionBehavior::FullScreenAuxiliary
+                    | NSWindowCollectionBehavior::Stationary
+                    | NSWindowCollectionBehavior::IgnoresCycle,
+            );
         }
     }
 
@@ -363,8 +384,20 @@ fn elevate_overlay_window(window: &WebviewWindow) -> Result<(), String> {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn elevate_overlay_window(_: &WebviewWindow) -> Result<(), String> {
-    Ok(())
+fn apply_window_level(window: &WebviewWindow, allow_input_panel: bool) -> Result<(), String> {
+    window
+        .set_always_on_top(!allow_input_panel)
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn elevate_overlay_window(window: &WebviewWindow) -> Result<(), String> {
+    apply_window_level(window, false)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn elevate_overlay_window(window: &WebviewWindow) -> Result<(), String> {
+    apply_window_level(window, false)
 }
 
 #[cfg(target_os = "macos")]
@@ -441,7 +474,11 @@ fn show_overlay_windows(
     for (index, label) in labels.iter().enumerate() {
         if let Some(window) = app.get_webview_window(label.as_str()) {
             window.show()?;
-            window.set_always_on_top(true)?;
+            apply_window_level(&window, false)
+                .map_err(|error| tauri::Error::Io(io::Error::new(
+                    io::ErrorKind::Other,
+                    error,
+                )))?;
             if index == 0 {
                 let _ = window.set_focus();
             }
@@ -456,7 +493,8 @@ fn main() {
             show_region_capture_overlay,
             cancel_region_capture,
             capture_region,
-            finalize_region_capture
+            finalize_region_capture,
+            set_current_window_always_on_top
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

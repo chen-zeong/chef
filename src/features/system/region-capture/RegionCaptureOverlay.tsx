@@ -62,12 +62,21 @@ export function RegionCaptureOverlay() {
   const [draftSelection, setDraftSelection] = useState<Rect | null>(null);
   const [dragStart, setDragStart] = useState<Point | null>(null);
   const [captureResult, setCaptureResult] = useState<CaptureSuccessPayload | null>(null);
+  const [capturedRect, setCapturedRect] = useState<Rect | null>(null);
   const [interaction, setInteraction] = useState<InteractionState | null>(null);
+  const [overlaySize, setOverlaySize] = useState<{ width: number; height: number } | null>(null);
+  const [dockOffset, setDockOffset] = useState(0);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
   const selectionRef = useRef<Rect | null>(null);
 
   const isEditing = phase === "editing" && captureResult;
+
+  useEffect(() => {
+    void invoke("set_current_window_always_on_top", {
+      allow_input_panel: Boolean(isEditing)
+    }).catch(() => undefined);
+  }, [isEditing]);
 
   useEffect(() => {
     const { classList } = document.body;
@@ -125,6 +134,55 @@ export function RegionCaptureOverlay() {
     };
   }, []);
 
+  useEffect(() => {
+    const element = overlayRef.current;
+    if (!element) {
+      return;
+    }
+    const update = () => {
+      const bounds = getOverlayBounds(element);
+      if (bounds) {
+        setOverlaySize(bounds);
+      }
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  useEffect(() => {
+    const computeDockOffset = () => {
+      const { screen } = window;
+      const rawHeight = screen?.height ?? window.innerHeight;
+      const availHeight = screen?.availHeight ?? window.innerHeight;
+      const availTop = (screen as { availTop?: number }).availTop ?? 0;
+      const dockHeight = Math.max(0, rawHeight - availTop - availHeight);
+      const scale = window.devicePixelRatio || 1;
+      const normalized = dockHeight / scale;
+      setDockOffset((previous) => {
+        if (Math.abs(previous - normalized) < 0.5) {
+          return previous;
+        }
+        return normalized;
+      });
+    };
+
+    computeDockOffset();
+    window.addEventListener("resize", computeDockOffset);
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", computeDockOffset);
+    return () => {
+      window.removeEventListener("resize", computeDockOffset);
+      viewport?.removeEventListener("resize", computeDockOffset);
+    };
+  }, []);
+
   const updateSelection = useCallback((next: Rect | null) => {
     selectionRef.current = next;
     setSelection(next);
@@ -133,6 +191,7 @@ export function RegionCaptureOverlay() {
   const resetSelection = useCallback(() => {
     document.body.classList.remove(HIDDEN_CLASS);
     updateSelection(null);
+    setCapturedRect(null);
     setDraftSelection(null);
     setDragStart(null);
     setInteraction(null);
@@ -247,6 +306,7 @@ export function RegionCaptureOverlay() {
 
       document.body.classList.add(HIDDEN_CLASS);
       setPhase("capturing");
+      setCapturedRect(rect);
       try {
         const payload = await invoke<CaptureSuccessPayload>("capture_region", { region });
         document.body.classList.remove(HIDDEN_CLASS);
@@ -255,6 +315,7 @@ export function RegionCaptureOverlay() {
         setError(null);
       } catch (issue) {
         document.body.classList.remove(HIDDEN_CLASS);
+        setCapturedRect(null);
         const message =
           issue instanceof Error
             ? issue.message
@@ -391,6 +452,7 @@ export function RegionCaptureOverlay() {
     setPhase("selected");
     document.body.classList.remove(HIDDEN_CLASS);
     setError(null);
+    setCapturedRect(null);
   }, []);
 
   const sizeLabel = useMemo(() => {
@@ -413,6 +475,8 @@ export function RegionCaptureOverlay() {
         height: `${activeRect.height}px`
       }
     : undefined;
+
+  const inlineRect = capturedRect;
 
   return (
     <div
@@ -451,7 +515,7 @@ export function RegionCaptureOverlay() {
 
       {!isEditing && activeRect && (
         <div
-          className="absolute border-2 border-[rgba(80,160,255,0.95)] bg-[rgba(80,160,255,0.18)] shadow-[0_0_0_1px_rgba(255,255,255,0.4)] backdrop-blur-sm"
+          className="absolute border-2 border-[rgba(80,160,255,0.95)] bg-transparent shadow-[0_0_0_1px_rgba(255,255,255,0.4)]"
           style={selectionStyle}
           onPointerDown={selection ? handleSelectionPointerDown : undefined}
         >
@@ -492,7 +556,33 @@ export function RegionCaptureOverlay() {
         </div>
       )}
 
-      {isEditing && captureResult && (
+      {isEditing && captureResult && inlineRect && (
+        <div className="pointer-events-none absolute inset-0">
+          <div
+            className="pointer-events-auto absolute rounded-[18px] border border-[rgba(80,160,255,0.4)] shadow-[0_12px_30px_rgba(15,23,42,0.35)]"
+            style={{
+              left: `${inlineRect.x}px`,
+              top: `${inlineRect.y}px`,
+              width: `${inlineRect.width}px`,
+              height: `${inlineRect.height}px`
+            }}
+          >
+            <RegionCaptureEditor
+              payload={captureResult}
+              onConfirm={handleFinalize}
+              onCancel={handleCancel}
+              onRetake={handleRetake}
+              mode="inline"
+              overlayRef={overlayRef}
+              selectionRect={inlineRect}
+              overlaySize={overlaySize}
+              dockOffset={dockOffset}
+            />
+          </div>
+        </div>
+      )}
+
+      {isEditing && captureResult && !capturedRect && (
         <div className="absolute inset-0 bg-[rgba(12,19,31,0.68)] backdrop-blur-md">
           <RegionCaptureEditor
             payload={captureResult}
