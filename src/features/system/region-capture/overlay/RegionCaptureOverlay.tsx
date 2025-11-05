@@ -4,7 +4,8 @@ import {
   useMemo,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -439,6 +440,66 @@ export function RegionCaptureOverlay() {
 
   const activeRect = getActiveRect(selection, draftSelection);
 
+  const overlayMask = useMemo(() => {
+    const baseClass = "pointer-events-none absolute bg-[rgba(0,0,0,0.35)]";
+    if (!overlaySize || !activeRect) {
+      return <div className={`${baseClass} inset-0`} />;
+    }
+
+    const segments: ReactNode[] = [];
+    const totalWidth = overlaySize.width;
+    const totalHeight = overlaySize.height;
+    const { x, y, width, height } = activeRect;
+    const rightWidth = Math.max(0, totalWidth - (x + width));
+    const bottomHeight = Math.max(0, totalHeight - (y + height));
+
+    if (y > 0) {
+      segments.push(
+        <div
+          key="shade-top"
+          className={baseClass}
+          style={{ top: 0, left: 0, width: totalWidth, height: y }}
+        />
+      );
+    }
+
+    if (bottomHeight > 0) {
+      segments.push(
+        <div
+          key="shade-bottom"
+          className={baseClass}
+          style={{ top: y + height, left: 0, width: totalWidth, height: bottomHeight }}
+        />
+      );
+    }
+
+    if (x > 0 && height > 0) {
+      segments.push(
+        <div
+          key="shade-left"
+          className={baseClass}
+          style={{ top: y, left: 0, width: x, height }}
+        />
+      );
+    }
+
+    if (rightWidth > 0 && height > 0) {
+      segments.push(
+        <div
+          key="shade-right"
+          className={baseClass}
+          style={{ top: y, left: x + width, width: rightWidth, height }}
+        />
+      );
+    }
+
+    if (segments.length === 0) {
+      return <div className={`${baseClass} inset-0`} />;
+    }
+
+    return segments;
+  }, [activeRect, overlaySize]);
+
   const selectionStyle = activeRect
     ? {
         left: `${activeRect.x}px`,
@@ -460,7 +521,7 @@ export function RegionCaptureOverlay() {
       onPointerUp={handleOverlayPointerUp}
       onPointerCancel={handleOverlayPointerUp}
     >
-      <div className="absolute inset-0 bg-[rgba(0,0,0,0.35)]" />
+      {overlayMask}
 
       {!isEditing && (
         <div className="pointer-events-auto absolute right-6 top-6 flex gap-2 text-xs">

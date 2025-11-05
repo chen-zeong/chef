@@ -10,8 +10,17 @@ use std::{
 #[cfg(target_os = "macos")]
 use std::sync::{Mutex, OnceLock};
 use tauri::{
-    async_runtime, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size, WebviewUrl,
-    WebviewWindow, WebviewWindowBuilder,
+    async_runtime,
+    window::Color,
+    Emitter,
+    LogicalPosition,
+    LogicalSize,
+    Manager,
+    Position,
+    Size,
+    WebviewUrl,
+    WebviewWindow,
+    WebviewWindowBuilder,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -122,6 +131,9 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
                 existing
                     .set_position(Position::Logical(logical_position))
                     .map_err(|error| error.to_string())?;
+                existing
+                    .set_background_color(Some(Color(0, 0, 0, 0)))
+                    .map_err(|error| error.to_string())?;
                 apply_window_level(&existing, false)?;
                 elevate_overlay_window(&existing)?;
                 existing.show().map_err(|error| error.to_string())?;
@@ -161,6 +173,9 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
                 .build()
                 .map_err(|error| error.to_string())?;
 
+            window
+                .set_background_color(Some(Color(0, 0, 0, 0)))
+                .map_err(|error| error.to_string())?;
             elevate_overlay_window(&window)?;
             apply_window_level(&window, false)?;
 
@@ -344,7 +359,7 @@ fn capture_region_internal(_: &CaptureRegion) -> Result<CaptureOutput, String> {
 #[cfg(target_os = "macos")]
 fn apply_window_level(window: &WebviewWindow, allow_input_panel: bool) -> Result<(), String> {
     use objc2_app_kit::{
-        NSWindow, NSWindowCollectionBehavior, NSWindowSharingType, NSStatusWindowLevel,
+        NSColor, NSWindow, NSWindowCollectionBehavior, NSWindowSharingType, NSStatusWindowLevel,
     };
 
     unsafe {
@@ -366,6 +381,12 @@ fn apply_window_level(window: &WebviewWindow, allow_input_panel: bool) -> Result
             );
             // Keep overlay visible to the user but exclude it from captured frames.
             reference.setSharingType(NSWindowSharingType::None);
+            if !allow_input_panel {
+                reference.setOpaque(false);
+                reference.setHasShadow(false);
+                let clear = NSColor::clearColor();
+                reference.setBackgroundColor(Some(&clear));
+            }
         }
     }
 
