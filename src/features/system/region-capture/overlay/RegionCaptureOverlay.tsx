@@ -13,11 +13,7 @@ import type {
   CaptureSuccessPayload,
   OverlayMetadata
 } from "../regionCaptureTypes";
-import {
-  HIDDEN_CLASS,
-  MIN_SELECTION_SIZE,
-  RESIZE_HANDLES
-} from "./RegionCaptureOverlayConstants";
+import { MIN_SELECTION_SIZE, RESIZE_HANDLES } from "./RegionCaptureOverlayConstants";
 import {
   clampNumber,
   computeRect,
@@ -90,7 +86,6 @@ export function RegionCaptureOverlay() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("contextmenu", preventContextMenu);
       classList.remove("region-capture-overlay");
-      classList.remove(HIDDEN_CLASS);
     };
   }, []);
 
@@ -179,7 +174,6 @@ export function RegionCaptureOverlay() {
   }, []);
 
   const resetSelection = useCallback(() => {
-    document.body.classList.remove(HIDDEN_CLASS);
     updateSelection(null);
     setCapturedRect(null);
     setDraftSelection(null);
@@ -294,17 +288,14 @@ export function RegionCaptureOverlay() {
         scaleY
       };
 
-      document.body.classList.add(HIDDEN_CLASS);
       setPhase("capturing");
       setCapturedRect(rect);
       try {
         const payload = await invoke<CaptureSuccessPayload>("capture_region", { region });
-        document.body.classList.remove(HIDDEN_CLASS);
         setCaptureResult(payload);
         setPhase("editing");
         setError(null);
       } catch (issue) {
-        document.body.classList.remove(HIDDEN_CLASS);
         setCapturedRect(null);
         const message =
           issue instanceof Error
@@ -432,7 +423,6 @@ export function RegionCaptureOverlay() {
   const handleRetake = useCallback(() => {
     setCaptureResult(null);
     setPhase("selected");
-    document.body.classList.remove(HIDDEN_CLASS);
     setError(null);
     setCapturedRect(null);
   }, []);
@@ -563,7 +553,7 @@ export function RegionCaptureOverlay() {
         </div>
       )}
 
-      {!isEditing && activeRect && (
+      {!isEditing && activeRect && phase !== "capturing" && phase !== "finalizing" && (
         <div
           className="absolute bg-transparent shadow-[inset_0_0_0_1px_rgba(255,255,255,0.4)]"
           style={selectionStyle}

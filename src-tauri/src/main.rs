@@ -3,7 +3,6 @@
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    io,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -224,18 +223,14 @@ async fn capture_region(
         return Err("选区尺寸无效，请重试。".into());
     }
 
-    let hidden_labels = hide_overlay_windows(&app).map_err(|error| error.to_string())?;
-
     let region_clone = region.clone();
     let capture_result =
         match async_runtime::spawn_blocking(move || capture_region_internal(&region_clone)).await {
             Ok(Ok(result)) => result,
             Ok(Err(error)) => {
-                let _ = show_overlay_windows(&app, &hidden_labels);
                 return Err(error);
             }
             Err(error) => {
-                let _ = show_overlay_windows(&app, &hidden_labels);
                 return Err(error.to_string());
             }
         };
@@ -246,8 +241,6 @@ async fn capture_region(
         ((region.width as f64) * region.scale_x).round().max(1.0) as u32;
     let physical_height =
         ((region.height as f64) * region.scale_y).round().max(1.0) as u32;
-
-    let _ = show_overlay_windows(&app, &hidden_labels);
 
     let payload = CaptureSuccessPayload {
         path: capture_result.path.to_string_lossy().into_owned(),
@@ -614,36 +607,6 @@ fn close_overlay_windows(app: &tauri::AppHandle) {
     }
 
     apply_overlay_presentation(false);
-}
-
-fn hide_overlay_windows(app: &tauri::AppHandle) -> Result<Vec<String>, tauri::Error> {
-    let labels = overlay_labels(app);
-    for label in &labels {
-        if let Some(window) = app.get_webview_window(label.as_str()) {
-            window.hide()?;
-        }
-    }
-    Ok(labels)
-}
-
-fn show_overlay_windows(
-    app: &tauri::AppHandle,
-    labels: &[String],
-) -> Result<(), tauri::Error> {
-    for (index, label) in labels.iter().enumerate() {
-        if let Some(window) = app.get_webview_window(label.as_str()) {
-            window.show()?;
-            apply_window_level(&window, false)
-                .map_err(|error| tauri::Error::Io(io::Error::new(
-                    io::ErrorKind::Other,
-                    error,
-                )))?;
-            if index == 0 {
-                let _ = window.set_focus();
-            }
-        }
-    }
-    Ok(())
 }
 
 fn main() {

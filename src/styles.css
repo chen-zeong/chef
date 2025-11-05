@@ -96,9 +96,6 @@
     cursor: crosshair;
   }
 
-  body.region-capture-overlay--hidden {
-    opacity: 0;
-  }
 }
 
 @layer components {
