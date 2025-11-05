@@ -450,74 +450,6 @@ export function RegionCaptureOverlay() {
 
   const inlineRect = capturedRect;
 
-  const overlayShade = useMemo(() => {
-    const fallback = <div className="absolute inset-0 bg-[rgba(0,0,0,0.35)]" />;
-    if (!activeRect || !overlaySize) {
-      return fallback;
-    }
-
-    const { width: fullWidth, height: fullHeight } = overlaySize;
-    if (fullWidth <= 0 || fullHeight <= 0) {
-      return fallback;
-    }
-
-    const topEdge = Math.max(0, Math.min(activeRect.y, fullHeight));
-    const bottomEdge = Math.max(
-      0,
-      Math.min(activeRect.y + activeRect.height, fullHeight)
-    );
-    const leftEdge = Math.max(0, Math.min(activeRect.x, fullWidth));
-    const rightEdge = Math.max(
-      0,
-      Math.min(activeRect.x + activeRect.width, fullWidth)
-    );
-
-    const topHeight = topEdge;
-    const bottomHeight = Math.max(0, fullHeight - bottomEdge);
-    const leftWidth = leftEdge;
-    const rightWidth = Math.max(0, fullWidth - rightEdge);
-    const selectionHeight = Math.max(0, bottomEdge - topEdge);
-
-    return (
-      <>
-        {topHeight > 0 && (
-          <div
-            className="absolute left-0 right-0 top-0 bg-[rgba(0,0,0,0.35)]"
-            style={{ height: `${topHeight}px` }}
-          />
-        )}
-        {bottomHeight > 0 && (
-          <div
-            className="absolute bottom-0 left-0 right-0 bg-[rgba(0,0,0,0.35)]"
-            style={{ height: `${bottomHeight}px` }}
-          />
-        )}
-        {leftWidth > 0 && (
-          <div
-            className="absolute bg-[rgba(0,0,0,0.35)]"
-            style={{
-              top: `${topEdge}px`,
-              height: `${selectionHeight}px`,
-              width: `${leftWidth}px`,
-              left: "0px"
-            }}
-          />
-        )}
-        {rightWidth > 0 && (
-          <div
-            className="absolute bg-[rgba(0,0,0,0.35)]"
-            style={{
-              top: `${topEdge}px`,
-              height: `${selectionHeight}px`,
-              right: "0px",
-              width: `${rightWidth}px`
-            }}
-          />
-        )}
-      </>
-    );
-  }, [activeRect, overlaySize]);
-
   return (
     <div
       ref={overlayRef}
@@ -528,7 +460,7 @@ export function RegionCaptureOverlay() {
       onPointerUp={handleOverlayPointerUp}
       onPointerCancel={handleOverlayPointerUp}
     >
-      <div className="pointer-events-none absolute inset-0">{overlayShade}</div>
+      <div className="absolute inset-0 bg-[rgba(0,0,0,0.35)]" />
 
       {!isEditing && (
         <div className="pointer-events-auto absolute right-6 top-6 flex gap-2 text-xs">
@@ -553,9 +485,9 @@ export function RegionCaptureOverlay() {
         </div>
       )}
 
-      {!isEditing && activeRect && phase !== "capturing" && phase !== "finalizing" && (
+      {!isEditing && activeRect && (
         <div
-          className="absolute bg-transparent shadow-[inset_0_0_0_1px_rgba(255,255,255,0.4)]"
+          className="absolute border-2 border-[rgba(80,160,255,0.95)] bg-transparent shadow-[0_0_0_1px_rgba(255,255,255,0.4)]"
           style={selectionStyle}
           onPointerDown={selection ? handleSelectionPointerDown : undefined}
         >
@@ -599,7 +531,7 @@ export function RegionCaptureOverlay() {
       {isEditing && captureResult && inlineRect && (
         <div className="pointer-events-none absolute inset-0">
           <div
-            className="pointer-events-auto absolute rounded-[18px] shadow-[0_12px_30px_rgba(15,23,42,0.35)]"
+            className="pointer-events-auto absolute rounded-[18px] border border-[rgba(80,160,255,0.4)] shadow-[0_12px_30px_rgba(15,23,42,0.35)]"
             style={{
               left: `${inlineRect.x}px`,
               top: `${inlineRect.y}px`,

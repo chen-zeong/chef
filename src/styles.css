@@ -92,10 +92,9 @@
   }
 
   body.region-capture-overlay {
-    background: transparent;
+    background: rgba(38, 41, 51, 0.48);
     cursor: crosshair;
   }
-
 }
 
 @layer components {
