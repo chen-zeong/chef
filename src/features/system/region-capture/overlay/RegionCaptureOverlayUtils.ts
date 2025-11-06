@@ -258,7 +258,7 @@ export function resizeRect(
 
 export function getHandleClass(handle: ResizeHandle) {
   const base =
-    "absolute h-2.5 w-2.5 border border-white bg-[rgba(80,160,255,0.95)] shadow-sm";
+    "absolute h-2 w-2 bg-[rgba(80,160,255,0.95)] shadow-sm";
   switch (handle) {
     case "n":
       return `${base} left-1/2 top-[-5px] -translate-x-1/2`;

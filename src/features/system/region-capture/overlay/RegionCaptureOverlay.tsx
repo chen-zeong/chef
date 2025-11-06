@@ -760,7 +760,8 @@ export function RegionCaptureOverlay() {
         left: `${activeRect.x}px`,
         top: `${activeRect.y}px`,
         width: `${activeRect.width}px`,
-        height: `${activeRect.height}px`
+        height: `${activeRect.height}px`,
+        cursor: selection && phase === "selected" ? "move" : undefined
       }
     : undefined;
 
@@ -821,8 +822,8 @@ export function RegionCaptureOverlay() {
           )}
           style={{
             ...(selectionStyle ?? {}),
-            boxShadow:
-              "0 0 0 2px rgba(80,160,255,0.95), 0 0 0 3px rgba(255,255,255,0.4)"
+            outline: "2px solid rgba(80,160,255,0.95)",
+            outlineOffset: 0
           }}
           onPointerDown={
             selection && phase === "selected" ? handleSelectionPointerDown : undefined
@@ -905,7 +906,7 @@ export function RegionCaptureOverlay() {
       {isEditing && captureResult && inlineRect && (
         <div className="pointer-events-none absolute inset-0 z-10">
           <div
-            className="pointer-events-auto absolute rounded-[18px] shadow-[0_12px_30px_rgba(15,23,42,0.35)]"
+            className="pointer-events-auto absolute rounded-[18px]"
             style={{
               left: `${inlineRect.x}px`,
               top: `${inlineRect.y}px`,
