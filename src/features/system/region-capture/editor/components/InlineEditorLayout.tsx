@@ -1,6 +1,4 @@
-import { createPortal } from "react-dom";
 import type { CSSProperties, ReactNode, RefObject } from "react";
-import clsx from "clsx";
 import { TOOLBAR_MARGIN } from "../constants";
 import { clampNumber } from "../operations";
 import type {
@@ -9,7 +7,6 @@ import type {
   ToolbarPlacement
 } from "../types";
 import type { CaptureSuccessPayload } from "../../regionCaptureTypes";
-import { EditorToolbarControls } from "./EditorToolbarControls";
 
 type InlineEditorLayoutProps = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -37,7 +34,6 @@ type InlineEditorLayoutProps = {
   isExporting: boolean;
   onUndo: () => void;
   onReset: () => void;
-  onRetake: () => void;
   onCancel: () => void;
   onConfirm: () => void;
   textInputOverlay: ReactNode;
@@ -69,7 +65,6 @@ export function InlineEditorLayout({
   isExporting,
   onUndo,
   onReset,
-  onRetake,
   onCancel,
   onConfirm,
   textInputOverlay
@@ -97,47 +92,8 @@ export function InlineEditorLayout({
   const effectivePlacement = placementInfo?.placement ?? "outside";
 
   const toolbarNode =
-    toolbarVisible && overlayElement
-      ? createPortal(
-          <div
-            ref={toolbarRef}
-            className={clsx(
-              "absolute z-[60] select-none rounded-2xl bg-[rgba(13,23,42,0.82)] px-4 py-3 text-white shadow-[0_20px_44px_rgba(8,15,30,0.55)] backdrop-blur",
-              effectivePlacement === "inside" ? "border border-[rgba(255,255,255,0.18)]" : null
-            )}
-            data-placement={effectivePlacement}
-            style={{
-              left: `${toolbarPosition.left}px`,
-              top: `${toolbarPosition.top}px`,
-              opacity: toolbarVisible ? 1 : 0,
-              transition: "top 0.2s ease, left 0.2s ease, opacity 0.2s ease",
-              maxWidth: toolbarMaxWidth ? `${toolbarMaxWidth}px` : "min(94vw, 1280px)"
-            }}
-          >
-            <EditorToolbarControls
-              variant="inline"
-              tool={tool}
-              onToolChange={onToolChange}
-              strokeColor={strokeColor}
-              onStrokeColorChange={onStrokeColorChange}
-              strokeWidth={strokeWidth}
-              onStrokeWidthChange={onStrokeWidthChange}
-              mosaicSize={mosaicSize}
-              onMosaicSizeChange={onMosaicSizeChange}
-              textSize={textSize}
-              onTextSizeChange={onTextSizeChange}
-              operationsCount={operationsCount}
-              hasDraftOperation={hasDraftOperation}
-              isExporting={isExporting}
-              onUndo={onUndo}
-              onReset={onReset}
-              onRetake={onRetake}
-              onCancel={onCancel}
-              onConfirm={onConfirm}
-            />
-          </div>,
-          overlayElement
-        )
+    toolbarVisible && overlayElement && toolbarPosition && effectivePlacement
+      ? null
       : null;
 
   return (
@@ -150,10 +106,6 @@ export function InlineEditorLayout({
           className="h-full w-full touch-none"
           style={canvasStyle}
         />
-
-        <div className="pointer-events-none absolute left-4 top-4 rounded-lg bg-[rgba(13,23,42,0.75)] px-3 py-1 text-[11px] text-white/85 backdrop-blur">
-          {payload.width} × {payload.height} / 逻辑尺寸 {payload.logical_width} × {payload.logical_height}
-        </div>
 
         {error && (
           <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl bg-[rgba(240,60,60,0.28)] px-3 py-2 text-xs text-[#ffd7d7] shadow-lg backdrop-blur">

@@ -11,7 +11,7 @@ import type { EditorTool } from "../types";
 type EditorToolbarControlsProps = {
   variant: "inline" | "full";
   className?: string;
-  tool: EditorTool;
+  tool: EditorTool | null;
   onToolChange: (next: EditorTool) => void;
   strokeColor: string;
   onStrokeColorChange: (color: string) => void;
@@ -26,7 +26,6 @@ type EditorToolbarControlsProps = {
   isExporting: boolean;
   onUndo: () => void;
   onReset: () => void;
-  onRetake: () => void;
   onCancel: () => void;
   onConfirm: () => void;
 };
@@ -49,7 +48,6 @@ export function EditorToolbarControls({
   isExporting,
   onUndo,
   onReset,
-  onRetake,
   onCancel,
   onConfirm
 }: EditorToolbarControlsProps) {
@@ -68,15 +66,13 @@ export function EditorToolbarControls({
     <button
       type="button"
       className={clsx(
-        "rounded-lg px-4 py-2 font-semibold transition",
-        isExporting
-          ? "bg-[rgba(255,255,255,0.45)] text-[rgba(18,27,43,0.7)]"
-          : "bg-[#3b82f6] text-white hover:bg-[#2563eb]"
+        "rounded-lg px-4 py-2 font-semibold transition bg-[#3b82f6] text-white hover:bg-[#2563eb]",
+        "disabled:bg-[#3b82f6] disabled:text-white disabled:hover:bg-[#3b82f6] disabled:cursor-default"
       )}
       onClick={onConfirm}
       disabled={isExporting}
     >
-      {isExporting ? "保存中…" : "完成"}
+      完成
     </button>
   );
 
@@ -192,14 +188,6 @@ export function EditorToolbarControls({
           disabled={operationsCount === 0 && !hasDraftOperation}
         >
           重置
-        </button>
-        <button
-          type="button"
-          className="rounded-lg bg-[rgba(255,255,255,0.14)] px-3 py-2 text-white/90 transition hover:bg-[rgba(255,255,255,0.24)]"
-          onClick={onRetake}
-          disabled={isExporting}
-        >
-          调整选区
         </button>
         <button
           type="button"

@@ -24,6 +24,7 @@ import type {
   EditorTool,
   Point,
   RegionCaptureEditorProps,
+  RegionCaptureEditorBridge,
   TextEntryState,
   TextOperation,
   ToolbarPlacement
@@ -36,12 +37,17 @@ export function RegionCaptureEditor({
   payload,
   onConfirm,
   onCancel,
-  onRetake,
   mode = "full",
   overlayRef,
   selectionRect,
   overlaySize,
-  dockOffset = 0
+  dockOffset = 0,
+  initialTool = "rectangle",
+  initialStrokeColor,
+  initialStrokeWidth,
+  initialMosaicSize,
+  initialTextSize,
+  onToolbarBridgeChange
 }: RegionCaptureEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const baseImageRef = useRef<HTMLImageElement | null>(null);
@@ -51,11 +57,11 @@ export function RegionCaptureEditor({
   const [operations, setOperations] = useState<DrawOperation[]>([]);
   const [draftOperation, setDraftOperation] = useState<DrawOperation | null>(null);
   const draftRef = useRef<DrawOperation | null>(null);
-  const [tool, setTool] = useState<EditorTool>("rectangle");
-  const [strokeColor, setStrokeColor] = useState(COLOR_CHOICES[0]);
-  const [strokeWidth, setStrokeWidth] = useState<number>(4);
-  const [mosaicSize, setMosaicSize] = useState<number>(DEFAULT_MOSAIC_SIZE);
-  const [textSize, setTextSize] = useState<number>(28);
+  const [tool, setTool] = useState<EditorTool>(initialTool);
+  const [strokeColor, setStrokeColor] = useState(initialStrokeColor ?? COLOR_CHOICES[0]);
+  const [strokeWidth, setStrokeWidth] = useState<number>(initialStrokeWidth ?? 4);
+  const [mosaicSize, setMosaicSize] = useState<number>(initialMosaicSize ?? DEFAULT_MOSAIC_SIZE);
+  const [textSize, setTextSize] = useState<number>(initialTextSize ?? 28);
   const [isExporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
@@ -85,6 +91,26 @@ export function RegionCaptureEditor({
       setTextEntry(null);
     }
   }, [tool]);
+
+  useEffect(() => {
+    setTool(initialTool);
+  }, [initialTool]);
+
+  useEffect(() => {
+    setStrokeColor(initialStrokeColor ?? COLOR_CHOICES[0]);
+  }, [initialStrokeColor]);
+
+  useEffect(() => {
+    setStrokeWidth(initialStrokeWidth ?? 4);
+  }, [initialStrokeWidth]);
+
+  useEffect(() => {
+    setMosaicSize(initialMosaicSize ?? DEFAULT_MOSAIC_SIZE);
+  }, [initialMosaicSize]);
+
+  useEffect(() => {
+    setTextSize(initialTextSize ?? 28);
+  }, [initialTextSize]);
 
   const containerStyle = useMemo(() => {
     if (isInline) {
@@ -628,6 +654,55 @@ export function RegionCaptureEditor({
     />
   );
 
+  useEffect(() => {
+    if (!onToolbarBridgeChange) {
+      return;
+    }
+    const bridge: RegionCaptureEditorBridge = {
+      tool,
+      strokeColor,
+      strokeWidth,
+      mosaicSize,
+      textSize,
+      canUndo: operations.length > 0 || Boolean(draftOperation),
+      canReset: operations.length > 0 || Boolean(draftOperation) || Boolean(textEntry),
+      isExporting,
+      setTool,
+      setStrokeColor,
+      setStrokeWidth,
+      setMosaicSize,
+      setTextSize,
+      undo: handleUndo,
+      reset: handleReset,
+      cancel: onCancel,
+      confirm: handleConfirm
+    };
+    onToolbarBridgeChange(bridge);
+    return () => {
+      onToolbarBridgeChange?.(null);
+    };
+  }, [
+    draftOperation,
+    handleConfirm,
+    handleReset,
+    handleUndo,
+    isExporting,
+    mosaicSize,
+    onCancel,
+    onToolbarBridgeChange,
+    operations.length,
+    setMosaicSize,
+    setStrokeColor,
+    setStrokeWidth,
+    setTextSize,
+    setTool,
+    strokeColor,
+    strokeWidth,
+    textEntry,
+    textSize,
+    tool
+  ]);
+
   if (isInline) {
     return (
       <InlineEditorLayout
@@ -656,7 +731,6 @@ export function RegionCaptureEditor({
         isExporting={isExporting}
         onUndo={handleUndo}
         onReset={handleReset}
-        onRetake={onRetake}
         onCancel={onCancel}
         onConfirm={handleConfirm}
         textInputOverlay={textInputOverlay}
@@ -686,7 +760,6 @@ export function RegionCaptureEditor({
       isExporting={isExporting}
       onUndo={handleUndo}
       onReset={handleReset}
-      onRetake={onRetake}
       onCancel={onCancel}
       onConfirm={handleConfirm}
       textInputOverlay={textInputOverlay}

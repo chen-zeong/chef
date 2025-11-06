@@ -1,6 +1,8 @@
+import clsx from "clsx";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -10,6 +12,12 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { RegionCaptureEditor } from "../RegionCaptureEditor";
+import {
+  COLOR_CHOICES,
+  DEFAULT_MOSAIC_SIZE,
+  STROKE_CHOICES,
+  TEXT_SIZE_CHOICES
+} from "../editor/constants";
 import type {
   CaptureSuccessPayload,
   OverlayMetadata
@@ -38,6 +46,8 @@ import type {
   Rect,
   ResizeHandle
 } from "./RegionCaptureOverlayTypes";
+import type { EditorTool, RegionCaptureEditorBridge } from "../editor/types";
+import { EditorToolbarControls } from "../editor/components/EditorToolbarControls";
 
 export function RegionCaptureOverlay() {
   const [metadata, setMetadata] = useState<OverlayMetadata | null>(() =>
@@ -53,6 +63,23 @@ export function RegionCaptureOverlay() {
   const [interaction, setInteraction] = useState<InteractionState | null>(null);
   const [overlaySize, setOverlaySize] = useState<{ width: number; height: number } | null>(null);
   const [dockOffset, setDockOffset] = useState(0);
+  const [pendingTool, setPendingTool] = useState<EditorTool | null>(null);
+  const [pendingStrokeColor, setPendingStrokeColor] = useState<string>(COLOR_CHOICES[0]);
+  const [pendingStrokeWidth, setPendingStrokeWidth] = useState<number>(STROKE_CHOICES[1]?.value ?? 4);
+  const [pendingMosaicSize, setPendingMosaicSize] = useState<number>(DEFAULT_MOSAIC_SIZE);
+  const [pendingTextSize, setPendingTextSize] = useState<number>(TEXT_SIZE_CHOICES[1]?.value ?? 28);
+  const [editorBridge, setEditorBridge] = useState<RegionCaptureEditorBridge | null>(null);
+  const [editorInitialTool, setEditorInitialTool] = useState<EditorTool>("rectangle");
+  const [editorInitialStrokeColor, setEditorInitialStrokeColor] = useState<string>(COLOR_CHOICES[0]);
+  const [editorInitialStrokeWidth, setEditorInitialStrokeWidth] = useState<number>(4);
+  const [editorInitialMosaicSize, setEditorInitialMosaicSize] = useState<number>(DEFAULT_MOSAIC_SIZE);
+  const [editorInitialTextSize, setEditorInitialTextSize] = useState<number>(28);
+  const toolPanelRef = useRef<HTMLDivElement | null>(null);
+  const [toolPanelPlacement, setToolPanelPlacement] = useState<{
+    top: number;
+    translate: string;
+    mode: "outside" | "inside";
+  } | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
   const selectionRef = useRef<Rect | null>(null);
@@ -182,6 +209,16 @@ export function RegionCaptureOverlay() {
     setInteraction(null);
     setPhase("idle");
     setError(null);
+    setPendingTool(null);
+    setPendingStrokeColor(COLOR_CHOICES[0]);
+    setPendingStrokeWidth(STROKE_CHOICES[1]?.value ?? 4);
+    setPendingMosaicSize(DEFAULT_MOSAIC_SIZE);
+    setPendingTextSize(TEXT_SIZE_CHOICES[1]?.value ?? 28);
+    setEditorInitialTool("rectangle");
+    setEditorInitialStrokeColor(COLOR_CHOICES[0]);
+    setEditorInitialStrokeWidth(4);
+    setEditorInitialMosaicSize(DEFAULT_MOSAIC_SIZE);
+    setEditorInitialTextSize(28);
   }, [updateSelection]);
 
   const handleOverlayPointerDown = useCallback(
@@ -239,8 +276,19 @@ export function RegionCaptureOverlay() {
     [dragStart, interaction, phase, selection, updateSelection]
   );
 
+  type CaptureIntent =
+    | {
+        kind: "edit";
+        tool: EditorTool;
+        strokeColor: string;
+        strokeWidth: number;
+        mosaicSize: number;
+        textSize: number;
+      }
+    | { kind: "finalize" };
+
   const beginCapture = useCallback(
-    async (rect: Rect) => {
+    async (rect: Rect, intent: CaptureIntent) => {
       if (!metadata || phase === "capturing" || phase === "finalizing") {
         return;
       }
@@ -291,19 +339,44 @@ export function RegionCaptureOverlay() {
 
       setPhase("capturing");
       setCapturedRect(rect);
+      setError(null);
       try {
         const payload = await invoke<CaptureSuccessPayload>("capture_region", { region });
-        setCaptureResult(payload);
-        setPhase("editing");
-        setError(null);
+        if (intent.kind === "edit") {
+          setCaptureResult(payload);
+          setEditorInitialTool(intent.tool);
+          setEditorInitialStrokeColor(intent.strokeColor);
+          setEditorInitialStrokeWidth(intent.strokeWidth);
+          setEditorInitialMosaicSize(intent.mosaicSize);
+          setEditorInitialTextSize(intent.textSize);
+          setPhase("editing");
+        } else {
+          setPhase("finalizing");
+          await invoke<CaptureSuccessPayload>("finalize_region_capture", {
+            request: {
+              path: payload.path,
+              base64: payload.base64,
+              width: payload.width,
+              height: payload.height,
+              logical_width: payload.logical_width,
+              logical_height: payload.logical_height
+            }
+          });
+          window.close();
+        }
       } catch (issue) {
+        if (intent.kind === "edit") {
+          setCaptureResult(null);
+        }
         setCapturedRect(null);
+        const fallback =
+          intent.kind === "edit" ? "截图失败，请重试。" : "保存截图失败，请重试。";
         const message =
           issue instanceof Error
             ? issue.message
             : typeof issue === "string"
               ? issue
-              : "截图失败，请重试。";
+              : fallback;
         setError(message);
         setPhase("selected");
       }
@@ -337,21 +410,151 @@ export function RegionCaptureOverlay() {
         setDraftSelection(null);
         setPhase("selected");
         setDragStart(null);
-        void beginCapture(rect);
         return;
       }
 
       if (interaction && interaction.pointerId === event.pointerId) {
         setInteraction(null);
         setPhase("selected");
-        const current = selectionRef.current;
-        if (current) {
-          void beginCapture(current);
-        }
       }
     },
-    [beginCapture, draftSelection, dragStart, interaction, metadata, phase, resetSelection, updateSelection]
+    [draftSelection, dragStart, interaction, metadata, phase, resetSelection, updateSelection]
   );
+
+  const handleToolSelect = useCallback(
+    (tool: EditorTool) => {
+      setPendingTool(tool);
+      if (phase === "selected") {
+        const current = selectionRef.current;
+        if (!current) {
+          setError("请先框选有效区域。");
+          return;
+        }
+        setEditorInitialTool(tool);
+        setEditorInitialStrokeColor(pendingStrokeColor);
+        setEditorInitialStrokeWidth(pendingStrokeWidth);
+        setEditorInitialMosaicSize(pendingMosaicSize);
+        setEditorInitialTextSize(pendingTextSize);
+        void beginCapture(current, {
+          kind: "edit",
+          tool,
+          strokeColor: pendingStrokeColor,
+          strokeWidth: pendingStrokeWidth,
+          mosaicSize: pendingMosaicSize,
+          textSize: pendingTextSize
+        });
+      } else if (phase === "editing") {
+        setEditorInitialTool(tool);
+        editorBridge?.setTool(tool);
+      }
+    },
+    [
+      beginCapture,
+      editorBridge,
+      pendingMosaicSize,
+      pendingStrokeColor,
+      pendingStrokeWidth,
+      pendingTextSize,
+      phase
+    ]
+  );
+
+  const handleStrokeColorChange = useCallback(
+    (color: string) => {
+      setPendingStrokeColor(color);
+      if (phase === "selected") {
+        setEditorInitialStrokeColor(color);
+      } else if (phase === "editing") {
+        setEditorInitialStrokeColor(color);
+        editorBridge?.setStrokeColor(color);
+      }
+    },
+    [editorBridge, phase]
+  );
+
+  const handleStrokeWidthChange = useCallback(
+    (width: number) => {
+      setPendingStrokeWidth(width);
+      if (phase === "selected") {
+        setEditorInitialStrokeWidth(width);
+      } else if (phase === "editing") {
+        setEditorInitialStrokeWidth(width);
+        editorBridge?.setStrokeWidth(width);
+      }
+    },
+    [editorBridge, phase]
+  );
+
+  const handleMosaicSizeChange = useCallback(
+    (size: number) => {
+      setPendingMosaicSize(size);
+      if (phase === "selected") {
+        setEditorInitialMosaicSize(size);
+      } else if (phase === "editing") {
+        setEditorInitialMosaicSize(size);
+        editorBridge?.setMosaicSize(size);
+      }
+    },
+    [editorBridge, phase]
+  );
+
+  const handleTextSizeChange = useCallback(
+    (size: number) => {
+      setPendingTextSize(size);
+      if (phase === "selected") {
+        setEditorInitialTextSize(size);
+      } else if (phase === "editing") {
+        setEditorInitialTextSize(size);
+        editorBridge?.setTextSize(size);
+      }
+    },
+    [editorBridge, phase]
+  );
+
+  const handleQuickFinalize = useCallback(() => {
+    if (phase === "selected") {
+      const current = selectionRef.current;
+      if (!current) {
+        setError("请先框选有效区域。");
+        return;
+      }
+      void beginCapture(current, { kind: "finalize" });
+    } else if (phase === "editing") {
+      void editorBridge?.confirm();
+    }
+  }, [beginCapture, editorBridge, phase]);
+
+  const handleToolbarUndo = useCallback(() => {
+    if (phase === "editing") {
+      editorBridge?.undo?.();
+    }
+  }, [editorBridge, phase]);
+
+  const handleToolbarReset = useCallback(() => {
+    if (phase === "editing") {
+      editorBridge?.reset?.();
+    } else if (phase === "selected") {
+      resetSelection();
+    }
+  }, [editorBridge, phase, resetSelection]);
+
+  const handleToolbarConfirm = useCallback(() => {
+    handleQuickFinalize();
+  }, [handleQuickFinalize]);
+
+  useEffect(() => {
+    if (phase !== "selected") {
+      return;
+    }
+    const listener = (event: KeyboardEvent) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleQuickFinalize();
+      }
+    };
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
+  }, [handleQuickFinalize, phase]);
 
   const handleSelectionPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -389,6 +592,14 @@ export function RegionCaptureOverlay() {
     window.close();
   }, []);
 
+  const handleToolbarCancel = useCallback(() => {
+    if (phase === "editing") {
+      editorBridge?.cancel?.();
+    } else {
+      void handleCancel();
+    }
+  }, [editorBridge, handleCancel, phase]);
+
   const handleFinalize = useCallback(
     async (dataUrl: string) => {
       if (!captureResult || phase !== "editing") {
@@ -421,27 +632,70 @@ export function RegionCaptureOverlay() {
     [captureResult, phase]
   );
 
-  const handleRetake = useCallback(() => {
-    setCaptureResult(null);
-    setPhase("selected");
-    setError(null);
-    setCapturedRect(null);
-  }, []);
-
-  const sizeLabel = useMemo(() => {
-    if (!selection || !metadata) {
-      return null;
+  useEffect(() => {
+    if (phase === "editing" && editorBridge) {
+      setPendingTool(editorBridge.tool);
+      setPendingStrokeColor(editorBridge.strokeColor);
+      setPendingStrokeWidth(editorBridge.strokeWidth);
+      setPendingMosaicSize(editorBridge.mosaicSize);
+      setPendingTextSize(editorBridge.textSize);
+      setEditorInitialTool(editorBridge.tool);
+      setEditorInitialStrokeColor(editorBridge.strokeColor);
+      setEditorInitialStrokeWidth(editorBridge.strokeWidth);
+      setEditorInitialMosaicSize(editorBridge.mosaicSize);
+      setEditorInitialTextSize(editorBridge.textSize);
     }
-    const { scaleX, scaleY } = getScale(metadata, overlayRef.current);
-    const width = Math.round(selection.width * scaleX);
-    const height = Math.round(selection.height * scaleY);
-    return `${width} × ${height}`;
-  }, [metadata, selection]);
+  }, [editorBridge, phase]);
+
+  useLayoutEffect(() => {
+    const referenceRect =
+      phase === "editing" && capturedRect ? capturedRect : selection;
+
+    if (!referenceRect || !overlaySize) {
+      setToolPanelPlacement(null);
+      return;
+    }
+
+    const margin = 12;
+    const panel = toolPanelRef.current;
+    const panelHeight = panel?.offsetHeight ?? 0;
+    const availableBelow =
+      overlaySize.height - (referenceRect.y + referenceRect.height) - margin;
+
+    if (panelHeight > 0 && availableBelow >= panelHeight) {
+      setToolPanelPlacement({
+        top: referenceRect.y + referenceRect.height + margin,
+        translate: "0",
+        mode: "outside"
+      });
+      return;
+    }
+
+    const anchor = referenceRect.y + referenceRect.height - margin;
+    if (panelHeight === 0 || !panel) {
+      setToolPanelPlacement({
+        top: anchor,
+        translate: "-100%",
+        mode: "inside"
+      });
+      return;
+    }
+
+    const panelTop = anchor - panelHeight;
+    const minTop = referenceRect.y + margin;
+    const delta = panelTop < minTop ? minTop - panelTop : 0;
+
+    setToolPanelPlacement({
+      top: anchor,
+      translate: delta > 0 ? `calc(-100% + ${delta}px)` : "-100%",
+      mode: "inside"
+    });
+  }, [capturedRect, overlaySize, phase, pendingTool, selection]);
 
   const activeRect = getActiveRect(selection, draftSelection);
 
   const overlayMask = useMemo(() => {
-    const baseClass = "pointer-events-none absolute bg-[rgba(0,0,0,0.35)]";
+    const baseClass = "pointer-events-none absolute z-10 bg-[rgba(0,0,0,0.35)]";
     if (!overlaySize || !activeRect) {
       return <div className={`${baseClass} inset-0`} />;
     }
@@ -510,6 +764,27 @@ export function RegionCaptureOverlay() {
     : undefined;
 
   const inlineRect = capturedRect;
+  const toolbarAnchorRect =
+    phase === "editing" && capturedRect ? capturedRect : activeRect;
+  const toolbarAnchorCenter =
+    toolbarAnchorRect ? toolbarAnchorRect.x + toolbarAnchorRect.width / 2 : 0;
+  const toolPanelStyle =
+    toolPanelPlacement && toolbarAnchorRect
+      ? {
+          left: `${toolbarAnchorCenter}px`,
+          top: `${toolPanelPlacement.top}px`,
+          transform: `translate(-50%, ${toolPanelPlacement.translate})`
+        }
+      : undefined;
+  const isEditingPhase = phase === "editing";
+  const toolbarExporting =
+    isEditingPhase ? Boolean(editorBridge?.isExporting) : phase === "capturing" || phase === "finalizing";
+  const toolbarCanUndo = isEditingPhase ? Boolean(editorBridge?.canUndo) : false;
+  const toolbarHasDraft = isEditingPhase ? Boolean(editorBridge?.canReset) : false;
+  const shouldShowToolbar =
+    Boolean(toolbarAnchorRect) &&
+    (phase === "selected" || phase === "editing" || phase === "capturing");
+  const isToolbarLocked = phase === "capturing" || phase === "finalizing";
 
   return (
     <div
@@ -525,16 +800,6 @@ export function RegionCaptureOverlay() {
 
       {!isEditing && (
         <div className="pointer-events-auto absolute right-6 top-6 flex gap-2 text-xs">
-          {selection && (
-            <button
-              type="button"
-              className="rounded-lg bg-[rgba(255,255,255,0.18)] px-3 py-2 text-white/90 transition hover:bg-[rgba(255,255,255,0.3)]"
-              onClick={resetSelection}
-              disabled={phase === "capturing" || phase === "finalizing"}
-            >
-              重新框选
-            </button>
-          )}
           <button
             type="button"
             className="rounded-lg bg-[rgba(255,255,255,0.14)] px-3 py-2 text-white/90 transition hover:bg-[rgba(255,255,255,0.25)]"
@@ -546,18 +811,23 @@ export function RegionCaptureOverlay() {
         </div>
       )}
 
-      {!isEditing && activeRect && (
+      {activeRect && (
         <div
-          className="absolute border-2 border-[rgba(80,160,255,0.95)] bg-transparent shadow-[0_0_0_1px_rgba(255,255,255,0.4)]"
-          style={selectionStyle}
-          onPointerDown={selection ? handleSelectionPointerDown : undefined}
-        >
-          {selection && sizeLabel && (
-            <div className="pointer-events-none absolute -top-8 left-0 rounded-lg bg-[rgba(18,27,43,0.78)] px-2 py-1 text-xs font-semibold text-white shadow-lg">
-              {sizeLabel}
-            </div>
+          className={clsx(
+            "absolute bg-transparent",
+            phase === "selected" ? "pointer-events-auto" : "pointer-events-none",
+            phase === "editing" ? "z-30" : "z-20"
           )}
-          {selection &&
+          style={{
+            ...(selectionStyle ?? {}),
+            boxShadow:
+              "0 0 0 2px rgba(80,160,255,0.95), 0 0 0 3px rgba(255,255,255,0.4)"
+          }}
+          onPointerDown={
+            selection && phase === "selected" ? handleSelectionPointerDown : undefined
+          }
+        >
+          {selection && phase === "selected" &&
             RESIZE_HANDLES.map((handle) => (
               <div
                 key={handle}
@@ -568,13 +838,54 @@ export function RegionCaptureOverlay() {
         </div>
       )}
 
-      {!isEditing && phase !== "capturing" && phase !== "finalizing" && (
-        <div className="pointer-events-none absolute left-1/2 top-10 -translate-x-1/2 rounded-2xl bg-[rgba(18,27,43,0.78)] px-4 py-2 text-center text-xs font-medium text-white shadow-lg backdrop-blur">
-          <p>拖动鼠标框选区域，松开后自动进入编辑工具。</p>
-          <p className="mt-1 text-[11px] text-white/75">
-            拖动框体边缘可微调大小，按 Esc 可随时取消。
-          </p>
+      {shouldShowToolbar ? (
+        <div
+          ref={toolPanelRef}
+          className={clsx(
+            "pointer-events-auto absolute z-30 w-max max-w-[min(95vw,1280px)] overflow-x-auto rounded-2xl px-4 py-3 text-xs text-white shadow-lg backdrop-blur",
+            toolPanelPlacement?.mode === "inside"
+              ? "bg-[rgba(18,27,43,0.88)]"
+              : "bg-[rgba(18,27,43,0.86)]",
+            isToolbarLocked && "pointer-events-none"
+          )}
+          style={
+            toolPanelStyle ?? {
+              left: `${toolbarAnchorCenter}px`,
+              top: `${toolPanelPlacement?.top ?? 0}px`,
+              transform: `translate(-50%, ${toolPanelPlacement?.translate ?? "0"})`
+            }
+          }
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <EditorToolbarControls
+            variant="inline"
+            className="gap-4"
+            tool={pendingTool}
+            onToolChange={handleToolSelect}
+            strokeColor={pendingStrokeColor}
+            onStrokeColorChange={handleStrokeColorChange}
+            strokeWidth={pendingStrokeWidth}
+            onStrokeWidthChange={handleStrokeWidthChange}
+            mosaicSize={pendingMosaicSize}
+            onMosaicSizeChange={handleMosaicSizeChange}
+            textSize={pendingTextSize}
+            onTextSizeChange={handleTextSizeChange}
+            operationsCount={toolbarCanUndo ? 1 : 0}
+            hasDraftOperation={toolbarHasDraft}
+            isExporting={toolbarExporting}
+            onUndo={handleToolbarUndo}
+            onReset={handleToolbarReset}
+            onCancel={handleToolbarCancel}
+            onConfirm={handleToolbarConfirm}
+          />
         </div>
+      ) : (
+        phase === "selected" && (
+          <div className="pointer-events-none absolute left-1/2 top-10 -translate-x-1/2 rounded-2xl bg-[rgba(18,27,43,0.78)] px-4 py-2 text-center text-xs font-medium text-white shadow-lg backdrop-blur">
+            <p>拖动鼠标框选区域，可直接拖动边框微调大小。</p>
+            <p className="mt-1 text-[11px] text-white/75">选区完成后可在下方面板选择工具与样式，点击任意工具会自动进入编辑。</p>
+          </div>
+        )
       )}
 
       {phase === "capturing" && (
@@ -590,9 +901,9 @@ export function RegionCaptureOverlay() {
       )}
 
       {isEditing && captureResult && inlineRect && (
-        <div className="pointer-events-none absolute inset-0">
+        <div className="pointer-events-none absolute inset-0 z-10">
           <div
-            className="pointer-events-auto absolute rounded-[18px] border border-[rgba(80,160,255,0.4)] shadow-[0_12px_30px_rgba(15,23,42,0.35)]"
+            className="pointer-events-auto absolute rounded-[18px] shadow-[0_12px_30px_rgba(15,23,42,0.35)]"
             style={{
               left: `${inlineRect.x}px`,
               top: `${inlineRect.y}px`,
@@ -604,12 +915,17 @@ export function RegionCaptureOverlay() {
               payload={captureResult}
               onConfirm={handleFinalize}
               onCancel={handleCancel}
-              onRetake={handleRetake}
               mode="inline"
               overlayRef={overlayRef}
               selectionRect={inlineRect}
               overlaySize={overlaySize}
               dockOffset={dockOffset}
+              initialTool={editorInitialTool}
+              initialStrokeColor={editorInitialStrokeColor}
+              initialStrokeWidth={editorInitialStrokeWidth}
+              initialMosaicSize={editorInitialMosaicSize}
+              initialTextSize={editorInitialTextSize}
+              onToolbarBridgeChange={setEditorBridge}
             />
           </div>
         </div>
@@ -621,7 +937,12 @@ export function RegionCaptureOverlay() {
             payload={captureResult}
             onConfirm={handleFinalize}
             onCancel={handleCancel}
-            onRetake={handleRetake}
+            initialTool={editorInitialTool}
+            initialStrokeColor={editorInitialStrokeColor}
+            initialStrokeWidth={editorInitialStrokeWidth}
+            initialMosaicSize={editorInitialMosaicSize}
+            initialTextSize={editorInitialTextSize}
+            onToolbarBridgeChange={setEditorBridge}
           />
         </div>
       )}

@@ -73,12 +73,17 @@ export type RegionCaptureEditorProps = {
   payload: CaptureSuccessPayload;
   onConfirm: (dataUrl: string) => Promise<void> | void;
   onCancel: () => void;
-  onRetake: () => void;
   mode?: "full" | "inline";
   overlayRef?: RefObject<HTMLDivElement | null>;
   selectionRect?: SelectionRect | null;
   overlaySize?: { width: number; height: number } | null;
   dockOffset?: number;
+  initialTool?: EditorTool;
+  initialStrokeColor?: string;
+  initialStrokeWidth?: number;
+  initialMosaicSize?: number;
+  initialTextSize?: number;
+  onToolbarBridgeChange?: (bridge: RegionCaptureEditorBridge | null) => void;
 };
 
 export type TextEntryState = {
@@ -94,4 +99,24 @@ export type ToolbarPlacement = {
     left: number;
     top: number;
   };
+};
+
+export type RegionCaptureEditorBridge = {
+  tool: EditorTool;
+  strokeColor: string;
+  strokeWidth: number;
+  mosaicSize: number;
+  textSize: number;
+  canUndo: boolean;
+  canReset: boolean;
+  isExporting: boolean;
+  setTool: (tool: EditorTool) => void;
+  setStrokeColor: (color: string) => void;
+  setStrokeWidth: (width: number) => void;
+  setMosaicSize: (size: number) => void;
+  setTextSize: (size: number) => void;
+  undo: () => void;
+  reset: () => void;
+  cancel: () => void;
+  confirm: () => void;
 };

@@ -24,7 +24,6 @@ type FullEditorLayoutProps = {
   isExporting: boolean;
   onUndo: () => void;
   onReset: () => void;
-  onRetake: () => void;
   onCancel: () => void;
   onConfirm: () => void;
   textInputOverlay: ReactNode;
@@ -51,7 +50,6 @@ export function FullEditorLayout({
   isExporting,
   onUndo,
   onReset,
-  onRetake,
   onCancel,
   onConfirm,
   textInputOverlay
@@ -62,7 +60,7 @@ export function FullEditorLayout({
         className="flex h-full w-full flex-col items-center gap-6 overflow-y-auto px-10 py-8"
         style={containerStyle}
       >
-        <div className="flex w-full max-w-[min(1080px,100%)] flex-wrap items-center justify-between gap-4 rounded-2xl bg-[rgba(18,27,43,0.82)] px-5 py-4 text-white shadow-[0_18px_48px_rgba(0,0,0,0.45)] backdrop-blur">
+        <div className="hidden">
           <EditorToolbarControls
             variant="full"
             className="w-full"
@@ -81,7 +79,6 @@ export function FullEditorLayout({
             isExporting={isExporting}
             onUndo={onUndo}
             onReset={onReset}
-            onRetake={onRetake}
             onCancel={onCancel}
             onConfirm={onConfirm}
           />
