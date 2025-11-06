@@ -258,26 +258,45 @@ export function resizeRect(
 
 export function getHandleClass(handle: ResizeHandle) {
   const base =
-    "absolute h-3 w-3 rounded-full border border-white bg-[rgba(80,160,255,0.95)] shadow-md";
+    "absolute h-2.5 w-2.5 border border-white bg-[rgba(80,160,255,0.95)] shadow-sm";
   switch (handle) {
     case "n":
-      return `${base} left-1/2 top-[-7px] -translate-x-1/2`;
+      return `${base} left-1/2 top-[-5px] -translate-x-1/2`;
     case "s":
-      return `${base} left-1/2 bottom-[-7px] -translate-x-1/2`;
+      return `${base} left-1/2 bottom-[-5px] -translate-x-1/2`;
     case "e":
-      return `${base} top-1/2 right-[-7px] -translate-y-1/2`;
+      return `${base} top-1/2 right-[-5px] -translate-y-1/2`;
     case "w":
-      return `${base} top-1/2 left-[-7px] -translate-y-1/2`;
+      return `${base} top-1/2 left-[-5px] -translate-y-1/2`;
     case "ne":
-      return `${base} right-[-7px] top-[-7px]`;
+      return `${base} right-[-5px] top-[-5px]`;
     case "nw":
-      return `${base} left-[-7px] top-[-7px]`;
+      return `${base} left-[-5px] top-[-5px]`;
     case "se":
-      return `${base} right-[-7px] bottom-[-7px]`;
+      return `${base} right-[-5px] bottom-[-5px]`;
     case "sw":
-      return `${base} left-[-7px] bottom-[-7px]`;
+      return `${base} left-[-5px] bottom-[-5px]`;
     default:
       return base;
+  }
+}
+
+export function getHandleCursor(handle: ResizeHandle) {
+  switch (handle) {
+    case "n":
+    case "s":
+      return "ns-resize";
+    case "e":
+    case "w":
+      return "ew-resize";
+    case "ne":
+    case "sw":
+      return "nesw-resize";
+    case "nw":
+    case "se":
+      return "nwse-resize";
+    default:
+      return "default";
   }
 }
 

@@ -29,6 +29,7 @@ import {
   createMoveInteraction,
   enforceMinimumSize,
   getActiveRect,
+  getHandleCursor,
   getHandleClass,
   getOverlayBounds,
   getScale,
@@ -833,6 +834,7 @@ export function RegionCaptureOverlay() {
                 key={handle}
                 onPointerDown={handleResizePointerDown(handle)}
                 className={getHandleClass(handle)}
+                style={{ cursor: getHandleCursor(handle) }}
               />
             ))}
         </div>
