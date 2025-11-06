@@ -1,7 +1,14 @@
 import type { RefObject } from "react";
 import type { CaptureSuccessPayload } from "../regionCaptureTypes";
 
-export type EditorTool = "line" | "rectangle" | "circle" | "pen" | "mosaic" | "text";
+export type EditorTool =
+  | "line"
+  | "rectangle"
+  | "circle"
+  | "pen"
+  | "arrow"
+  | "mosaic"
+  | "text";
 
 export type Point = {
   x: number;
@@ -39,6 +46,14 @@ export type PenOperation = {
   points: Point[];
 };
 
+export type ArrowOperation = {
+  kind: "arrow";
+  color: string;
+  width: number;
+  start: Point;
+  end: Point;
+};
+
 export type MosaicOperation = {
   kind: "mosaic";
   size: number;
@@ -58,6 +73,7 @@ export type DrawOperation =
   | LineOperation
   | RectangleOperation
   | CircleOperation
+  | ArrowOperation
   | PenOperation
   | MosaicOperation
   | TextOperation;

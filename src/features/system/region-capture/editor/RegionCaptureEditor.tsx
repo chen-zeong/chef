@@ -427,6 +427,15 @@ export function RegionCaptureEditor({
             end: start
           };
           break;
+        case "arrow":
+          nextDraft = {
+            kind: "arrow",
+            color: strokeColor,
+            width: strokeWidth,
+            start,
+            end: start
+          };
+          break;
         case "pen":
           nextDraft = {
             kind: "pen",
@@ -466,6 +475,7 @@ export function RegionCaptureEditor({
           case "line":
           case "rectangle":
           case "circle":
+          case "arrow":
             draftRef.current = {
               ...previous,
               end: position

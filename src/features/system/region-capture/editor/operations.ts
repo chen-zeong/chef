@@ -1,5 +1,6 @@
 import type { MutableRefObject } from "react";
 import type {
+  ArrowOperation,
   CircleOperation,
   DrawOperation,
   LineOperation,
@@ -25,6 +26,9 @@ export function drawOperation(
       break;
     case "circle":
       drawCircle(ctx, operation);
+      break;
+    case "arrow":
+      drawArrow(ctx, operation);
       break;
     case "pen":
       drawPen(ctx, operation);
@@ -94,6 +98,104 @@ export function drawCircle(ctx: CanvasRenderingContext2D, operation: CircleOpera
   ctx.lineWidth = operation.width;
   ctx.beginPath();
   ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+export function drawArrow(ctx: CanvasRenderingContext2D, operation: ArrowOperation) {
+  const { start, end, color, width } = operation;
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  const length = Math.hypot(deltaX, deltaY);
+  if (length === 0) {
+    return;
+  }
+  const unitX = deltaX / length;
+  const unitY = deltaY / length;
+  const normalX = -unitY;
+  const normalY = unitX;
+
+  let headLength = Math.max(48, width * 9);
+  if (length <= headLength + 12) {
+    headLength = length * 0.7;
+  }
+  const bodyLength = Math.max(length - headLength, 0);
+  const headBaseX = end.x - headLength * unitX;
+  const headBaseY = end.y - headLength * unitY;
+  const bodyEndX = start.x + bodyLength * unitX;
+  const bodyEndY = start.y + bodyLength * unitY;
+
+  const tailHalf = Math.max(width * 0.28, 0.82);
+  const neckBase = tailHalf + Math.max(5, width * 1.25);
+  const neckHalf = Math.min(neckBase + Math.min(bodyLength * 0.05, width * 0.9), Math.max(neckBase, width * 1.9));
+  const headHalf = Math.max(neckHalf + Math.max(12, width * 2.2), width * 3.6);
+
+  const tailLeftX = start.x + normalX * tailHalf;
+  const tailLeftY = start.y + normalY * tailHalf;
+  const tailRightX = start.x - normalX * tailHalf;
+  const tailRightY = start.y - normalY * tailHalf;
+
+  const neckLeftX = bodyEndX + normalX * neckHalf;
+  const neckLeftY = bodyEndY + normalY * neckHalf;
+  const neckRightX = bodyEndX - normalX * neckHalf;
+  const neckRightY = bodyEndY - normalY * neckHalf;
+
+  const headConcaveFactor = Math.min(0.46, 24 / Math.max(headHalf, 1));
+  const headConcaveOffset = headHalf * headConcaveFactor;
+  const headConcaveX = headBaseX + headConcaveOffset * unitX;
+  const headConcaveY = headBaseY + headConcaveOffset * unitY;
+
+  const headConcaveLeftX = headConcaveX + normalX * (neckHalf * 0.62);
+  const headConcaveLeftY = headConcaveY + normalY * (neckHalf * 0.62);
+  const headConcaveRightX = headConcaveX - normalX * (neckHalf * 0.62);
+  const headConcaveRightY = headConcaveY - normalY * (neckHalf * 0.62);
+
+  const tailHasCurve = bodyLength > 18;
+  const tailCurveDistance = tailHasCurve
+    ? clampNumber(bodyLength * 0.48, Math.min(bodyLength * 0.28, 14), Math.max(bodyLength - 10, 22))
+    : 0;
+  const tailCurveMix = tailHasCurve ? Math.min(0.68, 0.42 + bodyLength / 340) : 0;
+  const tailCurveWidth = tailHasCurve
+    ? tailHalf * (1 - tailCurveMix) + neckHalf * (tailCurveMix * 0.45)
+    : tailHalf;
+  const tailControlX = tailHasCurve ? start.x + tailCurveDistance * unitX : start.x;
+  const tailControlY = tailHasCurve ? start.y + tailCurveDistance * unitY : start.y;
+  const tailConcaveLeftX = tailHasCurve ? tailControlX + normalX * tailCurveWidth : tailLeftX;
+  const tailConcaveLeftY = tailHasCurve ? tailControlY + normalY * tailCurveWidth : tailLeftY;
+  const tailConcaveRightX = tailHasCurve ? tailControlX - normalX * tailCurveWidth : tailRightX;
+  const tailConcaveRightY = tailHasCurve ? tailControlY - normalY * tailCurveWidth : tailRightY;
+
+  const headLeftX = headBaseX + normalX * headHalf;
+  const headLeftY = headBaseY + normalY * headHalf;
+  const headRightX = headBaseX - normalX * headHalf;
+  const headRightY = headBaseY - normalY * headHalf;
+
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.lineWidth = Math.max(1, width * 0.75);
+
+  ctx.beginPath();
+  ctx.moveTo(tailLeftX, tailLeftY);
+  if (tailHasCurve) {
+    ctx.quadraticCurveTo(tailConcaveLeftX, tailConcaveLeftY, neckLeftX, neckLeftY);
+  } else {
+    ctx.lineTo(neckLeftX, neckLeftY);
+  }
+  ctx.lineTo(neckLeftX, neckLeftY);
+  ctx.quadraticCurveTo(headConcaveLeftX, headConcaveLeftY, headLeftX, headLeftY);
+  ctx.lineTo(end.x, end.y);
+  ctx.lineTo(headRightX, headRightY);
+  ctx.quadraticCurveTo(headConcaveRightX, headConcaveRightY, neckRightX, neckRightY);
+  if (tailHasCurve) {
+    ctx.quadraticCurveTo(tailConcaveRightX, tailConcaveRightY, tailRightX, tailRightY);
+  } else {
+    ctx.lineTo(tailRightX, tailRightY);
+  }
+  ctx.closePath();
+  ctx.fill();
   ctx.stroke();
   ctx.restore();
 }
@@ -207,7 +309,8 @@ export function normalizeDraftOperation(operation: DrawOperation): DrawOperation
   if (
     (operation.kind === "line" ||
       operation.kind === "rectangle" ||
-      operation.kind === "circle") &&
+      operation.kind === "circle" ||
+      operation.kind === "arrow") &&
     (operation.start.x !== operation.end.x || operation.start.y !== operation.end.y)
   ) {
     return operation;

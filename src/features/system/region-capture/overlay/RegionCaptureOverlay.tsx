@@ -78,7 +78,9 @@ export function RegionCaptureOverlay() {
   const toolPanelRef = useRef<HTMLDivElement | null>(null);
   const [toolPanelPlacement, setToolPanelPlacement] = useState<{
     top: number;
-    translate: string;
+    left: number;
+    translateX: string;
+    translateY: string;
     mode: "outside" | "inside";
   } | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
@@ -660,36 +662,70 @@ export function RegionCaptureOverlay() {
     const margin = 12;
     const panel = toolPanelRef.current;
     const panelHeight = panel?.offsetHeight ?? 0;
-    const availableBelow =
-      overlaySize.height - (referenceRect.y + referenceRect.height) - margin;
+    const panelWidth = panel?.offsetWidth ?? 0;
+    const anchorBottom = referenceRect.y + referenceRect.height;
+    const availableBelow = overlaySize.height - anchorBottom - margin;
+
+    let top: number;
+    let translateY: string;
+    let mode: "outside" | "inside";
 
     if (panelHeight > 0 && availableBelow >= panelHeight) {
-      setToolPanelPlacement({
-        top: referenceRect.y + referenceRect.height + margin,
-        translate: "0",
-        mode: "outside"
-      });
-      return;
+      top = anchorBottom + margin;
+      translateY = "0";
+      mode = "outside";
+    } else {
+      const anchor = anchorBottom - margin;
+      if (!panel || panelHeight === 0) {
+        top = anchor;
+        translateY = "-100%";
+        mode = "inside";
+      } else {
+        const panelTop = anchor - panelHeight;
+        const minTop = referenceRect.y + margin;
+        const delta = panelTop < minTop ? minTop - panelTop : 0;
+        top = anchor;
+        translateY = delta > 0 ? `calc(-100% + ${delta}px)` : "-100%";
+        mode = "inside";
+      }
     }
 
-    const anchor = referenceRect.y + referenceRect.height - margin;
-    if (panelHeight === 0 || !panel) {
-      setToolPanelPlacement({
-        top: anchor,
-        translate: "-100%",
-        mode: "inside"
-      });
-      return;
+    const anchorCenterX = referenceRect.x + referenceRect.width / 2;
+    const availableWidth = overlaySize.width;
+    let left: number;
+    let translateX = "-50%";
+
+    if (panel && panelWidth > 0) {
+      const minLeft = margin;
+      const maxLeft = Math.max(minLeft, availableWidth - margin - panelWidth);
+      const desiredLeft = anchorCenterX - panelWidth / 2;
+      left = clampNumber(desiredLeft, minLeft, maxLeft);
+      translateX = "0";
+    } else {
+      const minLeft = margin;
+      const maxLeft = Math.max(minLeft, availableWidth - margin);
+      left = clampNumber(anchorCenterX, minLeft, maxLeft);
+      translateX = "-50%";
     }
 
-    const panelTop = anchor - panelHeight;
-    const minTop = referenceRect.y + margin;
-    const delta = panelTop < minTop ? minTop - panelTop : 0;
-
-    setToolPanelPlacement({
-      top: anchor,
-      translate: delta > 0 ? `calc(-100% + ${delta}px)` : "-100%",
-      mode: "inside"
+    setToolPanelPlacement((previous) => {
+      if (
+        previous &&
+        previous.top === top &&
+        previous.left === left &&
+        previous.translateX === translateX &&
+        previous.translateY === translateY &&
+        previous.mode === mode
+      ) {
+        return previous;
+      }
+      return {
+        top,
+        left,
+        translateX,
+        translateY,
+        mode
+      };
     });
   }, [capturedRect, overlaySize, phase, pendingTool, selection]);
 
@@ -770,14 +806,13 @@ export function RegionCaptureOverlay() {
     phase === "editing" && capturedRect ? capturedRect : activeRect;
   const toolbarAnchorCenter =
     toolbarAnchorRect ? toolbarAnchorRect.x + toolbarAnchorRect.width / 2 : 0;
-  const toolPanelStyle =
-    toolPanelPlacement && toolbarAnchorRect
-      ? {
-          left: `${toolbarAnchorCenter}px`,
-          top: `${toolPanelPlacement.top}px`,
-          transform: `translate(-50%, ${toolPanelPlacement.translate})`
-        }
-      : undefined;
+  const toolPanelStyle = toolPanelPlacement
+    ? {
+        left: `${toolPanelPlacement.left}px`,
+        top: `${toolPanelPlacement.top}px`,
+        transform: `translate(${toolPanelPlacement.translateX}, ${toolPanelPlacement.translateY})`
+      }
+    : undefined;
   const isEditingPhase = phase === "editing";
   const toolbarExporting =
     isEditingPhase ? Boolean(editorBridge?.isExporting) : phase === "capturing" || phase === "finalizing";
@@ -855,7 +890,7 @@ export function RegionCaptureOverlay() {
             toolPanelStyle ?? {
               left: `${toolbarAnchorCenter}px`,
               top: `${toolPanelPlacement?.top ?? 0}px`,
-              transform: `translate(-50%, ${toolPanelPlacement?.translate ?? "0"})`
+              transform: `translate(-50%, ${toolPanelPlacement?.translateY ?? "0"})`
             }
           }
           onPointerDown={(event) => event.stopPropagation()}

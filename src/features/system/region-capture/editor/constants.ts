@@ -5,6 +5,7 @@ export const TOOL_LABELS: Record<EditorTool, string> = {
   rectangle: "矩形",
   circle: "圈选",
   pen: "画笔",
+  arrow: "箭头",
   mosaic: "马赛克",
   text: "文字"
 };
@@ -14,6 +15,7 @@ export const TOOL_ORDER: EditorTool[] = [
   "rectangle",
   "circle",
   "pen",
+  "arrow",
   "mosaic",
   "text"
 ];
