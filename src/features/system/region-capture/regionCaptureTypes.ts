@@ -6,6 +6,7 @@ export type CaptureSuccessPayload = {
   logical_width: number;
   logical_height: number;
   created_at: number;
+  ocr_text?: string | null;
 };
 
 export type OverlayMetadata = {

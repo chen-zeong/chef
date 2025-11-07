@@ -28,6 +28,7 @@ type EditorToolbarControlsProps = {
   onReset: () => void;
   onCancel: () => void;
   onConfirm: () => void;
+  onOcr: () => void;
 };
 
 export function EditorToolbarControls({
@@ -49,7 +50,8 @@ export function EditorToolbarControls({
   onUndo,
   onReset,
   onCancel,
-  onConfirm
+  onConfirm,
+  onOcr
 }: EditorToolbarControlsProps) {
   const containerClass = clsx(
     "flex items-center gap-3 text-white/90",
@@ -196,6 +198,14 @@ export function EditorToolbarControls({
           disabled={isExporting}
         >
           取消
+        </button>
+        <button
+          type="button"
+          className="rounded-lg bg-[rgba(59,130,246,0.18)] px-3 py-2 font-semibold text-white transition hover:bg-[rgba(59,130,246,0.3)] disabled:bg-[rgba(59,130,246,0.18)] disabled:text-white/60 disabled:cursor-default"
+          onClick={onOcr}
+          disabled={isExporting}
+        >
+          OCR 识别
         </button>
         {variant === "full" && confirmButton}
       </div>

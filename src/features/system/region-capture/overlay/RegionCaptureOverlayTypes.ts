@@ -4,7 +4,8 @@ export type OverlayPhase =
   | "selected"
   | "capturing"
   | "editing"
-  | "finalizing";
+  | "finalizing"
+  | "ocr-result";
 
 export type Point = {
   x: number;

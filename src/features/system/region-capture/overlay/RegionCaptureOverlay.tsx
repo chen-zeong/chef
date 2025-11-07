@@ -48,7 +48,11 @@ import type {
   Rect,
   ResizeHandle
 } from "./RegionCaptureOverlayTypes";
-import type { EditorTool, RegionCaptureEditorBridge } from "../editor/types";
+import type {
+  CaptureExportOptions,
+  EditorTool,
+  RegionCaptureEditorBridge
+} from "../editor/types";
 import { EditorToolbarControls } from "../editor/components/EditorToolbarControls";
 
 const SNAP_EDGE_TOLERANCE = 12;
@@ -101,8 +105,20 @@ export function RegionCaptureOverlay() {
   } | null>(null);
   const [snapTargets, setSnapTargets] = useState<WindowSnapTarget[]>([]);
   const [hoverRect, setHoverRect] = useState<(Rect & { id: number; name: string }) | null>(null);
+  const [finalizingMode, setFinalizingMode] = useState<"save" | "ocr">("save");
+  const [ocrResultText, setOcrResultText] = useState<string | null>(null);
+  const [ocrCopyLabel, setOcrCopyLabel] = useState("复制文字");
+  const ocrCopyTimeoutRef = useRef<number | null>(null);
 
   const isEditing = phase === "editing" && captureResult;
+  const resetOcrResult = useCallback(() => {
+    if (ocrCopyTimeoutRef.current) {
+      window.clearTimeout(ocrCopyTimeoutRef.current);
+      ocrCopyTimeoutRef.current = null;
+    }
+    setOcrCopyLabel("复制文字");
+    setOcrResultText(null);
+  }, []);
 
   useEffect(() => {
     void invoke("set_current_window_always_on_top", {
@@ -161,6 +177,14 @@ export function RegionCaptureOverlay() {
       mounted = false;
       if (typeof disposer === "function") {
         disposer();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (ocrCopyTimeoutRef.current) {
+        window.clearTimeout(ocrCopyTimeoutRef.current);
       }
     };
   }, []);
@@ -504,13 +528,14 @@ export function RegionCaptureOverlay() {
         mosaicSize: number;
         textSize: number;
       }
-    | { kind: "finalize" };
+    | { kind: "finalize"; runOcr: boolean };
 
   const beginCapture = useCallback(
     async (rect: Rect, intent: CaptureIntent) => {
       if (!metadata || phase === "capturing" || phase === "finalizing") {
         return;
       }
+      resetOcrResult();
 
       const { scaleX, scaleY } = getScale(metadata, overlayRef.current);
 
@@ -570,18 +595,26 @@ export function RegionCaptureOverlay() {
           setEditorInitialTextSize(intent.textSize);
           setPhase("editing");
         } else {
+          setFinalizingMode(intent.runOcr ? "ocr" : "save");
           setPhase("finalizing");
-          await invoke<CaptureSuccessPayload>("finalize_region_capture", {
+          const finalized = await invoke<CaptureSuccessPayload>("finalize_region_capture", {
             request: {
               path: payload.path,
               base64: payload.base64,
               width: payload.width,
               height: payload.height,
               logical_width: payload.logical_width,
-              logical_height: payload.logical_height
+              logical_height: payload.logical_height,
+              run_ocr: intent.runOcr
             }
           });
-          window.close();
+          if (intent.runOcr) {
+            setOcrResultText(finalized.ocr_text ?? "");
+            setOcrCopyLabel("复制文字");
+            setPhase("ocr-result");
+          } else {
+            window.close();
+          }
         }
       } catch (issue) {
         if (intent.kind === "edit") {
@@ -598,9 +631,11 @@ export function RegionCaptureOverlay() {
               : fallback;
         setError(message);
         setPhase("selected");
+        resetOcrResult();
+        setFinalizingMode("save");
       }
     },
-    [metadata, phase]
+    [metadata, phase, resetOcrResult]
   );
 
   const handleOverlayPointerUp = useCallback(
@@ -748,18 +783,22 @@ export function RegionCaptureOverlay() {
     [editorBridge, phase]
   );
 
-  const handleQuickFinalize = useCallback(() => {
-    if (phase === "selected") {
-      const current = selectionRef.current;
-      if (!current) {
-        setError("请先框选有效区域。");
-        return;
+  const handleQuickFinalize = useCallback(
+    (options?: CaptureExportOptions) => {
+      const shouldRunOcr = Boolean(options?.runOcr);
+      if (phase === "selected") {
+        const current = selectionRef.current;
+        if (!current) {
+          setError("请先框选有效区域。");
+          return;
+        }
+        void beginCapture(current, { kind: "finalize", runOcr: shouldRunOcr });
+      } else if (phase === "editing") {
+        void editorBridge?.confirm({ runOcr: shouldRunOcr });
       }
-      void beginCapture(current, { kind: "finalize" });
-    } else if (phase === "editing") {
-      void editorBridge?.confirm();
-    }
-  }, [beginCapture, editorBridge, phase]);
+    },
+    [beginCapture, editorBridge, phase]
+  );
 
   const handleToolbarUndo = useCallback(() => {
     if (phase === "editing") {
@@ -777,6 +816,10 @@ export function RegionCaptureOverlay() {
 
   const handleToolbarConfirm = useCallback(() => {
     handleQuickFinalize();
+  }, [handleQuickFinalize]);
+
+  const handleToolbarOcr = useCallback(() => {
+    handleQuickFinalize({ runOcr: true });
   }, [handleQuickFinalize]);
 
   useEffect(() => {
@@ -838,23 +881,33 @@ export function RegionCaptureOverlay() {
   }, [editorBridge, handleCancel, phase]);
 
   const handleFinalize = useCallback(
-    async (dataUrl: string) => {
+    async (dataUrl: string, options?: CaptureExportOptions) => {
       if (!captureResult || phase !== "editing") {
         return;
       }
+      resetOcrResult();
+      const shouldRunOcr = Boolean(options?.runOcr);
+      setFinalizingMode(shouldRunOcr ? "ocr" : "save");
       setPhase("finalizing");
       try {
-        await invoke<CaptureSuccessPayload>("finalize_region_capture", {
+        const finalized = await invoke<CaptureSuccessPayload>("finalize_region_capture", {
           request: {
             path: captureResult.path,
             base64: dataUrl,
             width: captureResult.width,
             height: captureResult.height,
             logical_width: captureResult.logical_width,
-            logical_height: captureResult.logical_height
+            logical_height: captureResult.logical_height,
+            run_ocr: shouldRunOcr
           }
         });
-        window.close();
+        if (shouldRunOcr) {
+          setOcrResultText(finalized.ocr_text ?? "");
+          setOcrCopyLabel("复制文字");
+          setPhase("ocr-result");
+        } else {
+          window.close();
+        }
       } catch (issue) {
         const message =
           issue instanceof Error
@@ -864,10 +917,35 @@ export function RegionCaptureOverlay() {
               : "保存截图失败，请重试。";
         setError(message);
         setPhase("editing");
+        setFinalizingMode("save");
+        resetOcrResult();
       }
     },
-    [captureResult, phase]
+    [captureResult, phase, resetOcrResult]
   );
+
+  const handleCopyOcrResult = useCallback(async () => {
+    if (!ocrResultText || !ocrResultText.trim()) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(ocrResultText);
+      setOcrCopyLabel("已复制");
+    } catch {
+      setOcrCopyLabel("复制失败");
+    }
+    if (ocrCopyTimeoutRef.current) {
+      window.clearTimeout(ocrCopyTimeoutRef.current);
+    }
+    ocrCopyTimeoutRef.current = window.setTimeout(() => {
+      setOcrCopyLabel("复制文字");
+      ocrCopyTimeoutRef.current = null;
+    }, 2000);
+  }, [ocrResultText]);
+
+  const handleCloseAfterOcr = useCallback(() => {
+    void handleCancel();
+  }, [handleCancel]);
 
   useEffect(() => {
     if (phase === "editing" && editorBridge) {
@@ -1073,6 +1151,7 @@ export function RegionCaptureOverlay() {
     Boolean(toolbarAnchorRect) &&
     (phase === "selected" || phase === "editing" || phase === "capturing");
   const isToolbarLocked = phase === "capturing" || phase === "finalizing";
+  const hasOcrResultText = Boolean(ocrResultText && ocrResultText.trim().length > 0);
 
   return (
     <div
@@ -1167,6 +1246,7 @@ export function RegionCaptureOverlay() {
             onReset={handleToolbarReset}
             onCancel={handleToolbarCancel}
             onConfirm={handleToolbarConfirm}
+            onOcr={handleToolbarOcr}
           />
         </div>
       ) : (
@@ -1180,7 +1260,50 @@ export function RegionCaptureOverlay() {
 
       {phase === "finalizing" && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-medium text-white">
-          正在保存编辑结果…
+          {finalizingMode === "ocr" ? "正在保存并识别文字…" : "正在保存编辑结果…"}
+        </div>
+      )}
+
+      {phase === "ocr-result" && (
+        <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-[rgba(7,12,22,0.85)] px-4 py-6 backdrop-blur-md">
+          <div className="w-[min(640px,94vw)] rounded-3xl bg-white/95 p-6 text-[rgba(15,23,42,0.92)] shadow-2xl">
+            <h3 className="mb-3 text-lg font-semibold text-[rgba(15,23,42,0.97)]">OCR 识别结果</h3>
+            <div className="mb-4 max-h-[360px] overflow-y-auto rounded-2xl border border-[rgba(15,23,42,0.08)] bg-[rgba(247,249,253,0.96)] p-4 text-sm leading-6 text-[rgba(30,41,59,0.92)]">
+              {hasOcrResultText ? (
+                <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-6">
+                  {ocrResultText}
+                </pre>
+              ) : (
+                <span className="text-[rgba(15,23,42,0.5)]">未识别到文字</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                className="rounded-xl border border-transparent px-4 py-2 text-sm font-medium text-[rgba(15,23,42,0.72)] transition hover:bg-[rgba(15,23,42,0.06)]"
+                onClick={() => {
+                  void handleCancel();
+                }}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="rounded-xl border border-[rgba(59,130,246,0.45)] px-4 py-2 text-sm font-medium text-[rgba(37,99,235,0.95)] transition hover:bg-[rgba(59,130,246,0.08)] disabled:cursor-not-allowed disabled:border-[rgba(148,163,184,0.4)] disabled:text-[rgba(148,163,184,0.9)] disabled:hover:bg-transparent"
+                onClick={handleCopyOcrResult}
+                disabled={!hasOcrResultText}
+              >
+                {ocrCopyLabel}
+              </button>
+              <button
+                type="button"
+                className="rounded-xl bg-[rgba(15,23,42,0.92)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[rgba(15,23,42,0.85)]"
+                onClick={handleCloseAfterOcr}
+              >
+                完成
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -20,6 +20,7 @@ import {
   normalizeDraftOperation
 } from "./operations";
 import type {
+  CaptureExportOptions,
   DrawOperation,
   EditorTool,
   Point,
@@ -645,7 +646,7 @@ export function RegionCaptureEditor({
     requestRender();
   }, [requestRender]);
 
-  const handleConfirm = useCallback(async () => {
+  const handleConfirm = useCallback(async (options?: CaptureExportOptions) => {
     const canvas = canvasRef.current;
     if (!canvas || isExporting) {
       return;
@@ -654,7 +655,7 @@ export function RegionCaptureEditor({
       setExporting(true);
       setError(null);
       const dataUrl = canvas.toDataURL("image/png");
-      await onConfirm(dataUrl);
+      await onConfirm(dataUrl, options);
     } catch (issue) {
       const message =
         issue instanceof Error ? issue.message : "导出截图失败，请重试。";
@@ -663,6 +664,17 @@ export function RegionCaptureEditor({
       setExporting(false);
     }
   }, [isExporting, onConfirm]);
+
+  const confirmWithOptions = useCallback(
+    (options?: CaptureExportOptions) => {
+      void handleConfirm(options);
+    },
+    [handleConfirm]
+  );
+
+  const handleOcrExport = useCallback(() => {
+    confirmWithOptions({ runOcr: true });
+  }, [confirmWithOptions]);
 
   const canvasStyle = useMemo(() => {
     if (isInline) {
@@ -712,7 +724,7 @@ export function RegionCaptureEditor({
       undo: handleUndo,
       reset: handleReset,
       cancel: onCancel,
-      confirm: handleConfirm
+      confirm: confirmWithOptions
     };
     onToolbarBridgeChange(bridge);
     return () => {
@@ -720,7 +732,7 @@ export function RegionCaptureEditor({
     };
   }, [
     hasDraftOperation,
-    handleConfirm,
+    confirmWithOptions,
     handleReset,
     handleUndo,
     isExporting,
@@ -769,7 +781,9 @@ export function RegionCaptureEditor({
         onUndo={handleUndo}
         onReset={handleReset}
         onCancel={onCancel}
-        onConfirm={handleConfirm}
+        onConfirm={() => {
+          void handleConfirm();
+        }}
         textInputOverlay={textInputOverlay}
       />
     );
@@ -792,13 +806,16 @@ export function RegionCaptureEditor({
       onMosaicSizeChange={setMosaicSize}
       textSize={textSize}
       onTextSizeChange={setTextSize}
-        operationsCount={operations.length}
-        hasDraftOperation={hasDraftOperation}
+      operationsCount={operations.length}
+      hasDraftOperation={hasDraftOperation}
       isExporting={isExporting}
       onUndo={handleUndo}
       onReset={handleReset}
       onCancel={onCancel}
-      onConfirm={handleConfirm}
+      onConfirm={() => {
+        void handleConfirm();
+      }}
+      onOcr={handleOcrExport}
       textInputOverlay={textInputOverlay}
     />
   );

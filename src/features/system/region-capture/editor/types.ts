@@ -87,7 +87,7 @@ export type SelectionRect = {
 
 export type RegionCaptureEditorProps = {
   payload: CaptureSuccessPayload;
-  onConfirm: (dataUrl: string) => Promise<void> | void;
+  onConfirm: (dataUrl: string, options?: CaptureExportOptions) => Promise<void> | void;
   onCancel: () => void;
   mode?: "full" | "inline";
   overlayRef?: RefObject<HTMLDivElement | null>;
@@ -100,6 +100,10 @@ export type RegionCaptureEditorProps = {
   initialMosaicSize?: number;
   initialTextSize?: number;
   onToolbarBridgeChange?: (bridge: RegionCaptureEditorBridge | null) => void;
+};
+
+export type CaptureExportOptions = {
+  runOcr?: boolean;
 };
 
 export type TextEntryState = {
@@ -134,5 +138,5 @@ export type RegionCaptureEditorBridge = {
   undo: () => void;
   reset: () => void;
   cancel: () => void;
-  confirm: () => void;
+  confirm: (options?: CaptureExportOptions) => void;
 };

@@ -26,6 +26,7 @@ type FullEditorLayoutProps = {
   onReset: () => void;
   onCancel: () => void;
   onConfirm: () => void;
+  onOcr: () => void;
   textInputOverlay: ReactNode;
 };
 
@@ -52,6 +53,7 @@ export function FullEditorLayout({
   onReset,
   onCancel,
   onConfirm,
+  onOcr,
   textInputOverlay
 }: FullEditorLayoutProps) {
   return (
@@ -81,6 +83,7 @@ export function FullEditorLayout({
             onReset={onReset}
             onCancel={onCancel}
             onConfirm={onConfirm}
+            onOcr={onOcr}
           />
         </div>
 

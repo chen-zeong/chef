@@ -6,26 +6,39 @@ use objc2_core_foundation::{CFDictionary, CFNumber, CFString, CGRect};
 use objc2_core_graphics::{
     CGRectMakeWithDictionaryRepresentation, CGWindowListCopyWindowInfo, CGWindowListOption,
 };
+use paddle_ocr_rs::ocr_lite::OcrLite;
 use serde::{Deserialize, Serialize};
 #[cfg(target_os = "macos")]
 use std::ffi::c_void;
 #[cfg(target_os = "macos")]
 use std::process::Command;
 use std::{
-    fs,
-    path::PathBuf,
+    env, fs,
+    path::{Path, PathBuf},
     sync::{Mutex, OnceLock},
     time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::{
-    async_runtime, window::Color, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size,
-    WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    async_runtime, path::BaseDirectory, window::Color, Emitter, LogicalPosition, LogicalSize,
+    Manager, Position, Size, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 
 #[cfg(target_os = "macos")]
 const ENABLE_COLLECTION_BEHAVIOR: bool = false;
 #[cfg(target_os = "macos")]
 const ENABLE_SHARING_TYPE: bool = false;
+
+const OCR_DET_MODEL: &str = "ch_PP-OCRv5_mobile_det.onnx";
+const OCR_REC_MODEL: &str = "ch_PP-OCRv5_rec_mobile_infer.onnx";
+const OCR_CLS_MODEL: &str = "ch_ppocr_mobile_v2.0_cls_infer.onnx";
+const OCR_DEFAULT_THREADS: usize = 2;
+const OCR_PADDING: u32 = 50;
+const OCR_MAX_SIDE_LEN: u32 = 1024;
+const OCR_BOX_SCORE_THRESH: f32 = 0.5;
+const OCR_BOX_THRESH: f32 = 0.3;
+const OCR_UNCLIP_RATIO: f32 = 1.6;
+
+static OCR_ENGINE: OnceLock<Mutex<Option<OcrLite>>> = OnceLock::new();
 
 #[derive(Debug, Clone, Deserialize)]
 struct CaptureRegion {
@@ -48,6 +61,8 @@ struct CaptureSuccessPayload {
     created_at: u128,
     logical_width: u32,
     logical_height: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ocr_text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,6 +73,8 @@ struct FinalizeCaptureRequest {
     height: u32,
     logical_width: u32,
     logical_height: u32,
+    #[serde(default)]
+    run_ocr: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -290,6 +307,7 @@ async fn capture_region(
         logical_width,
         logical_height,
         created_at: current_timestamp_millis(),
+        ocr_text: None,
     };
 
     Ok(payload)
@@ -315,7 +333,7 @@ async fn finalize_region_capture(
     let target_path = PathBuf::from(&request.path);
     fs::write(&target_path, &bytes).map_err(|error| format!("保存截图文件失败：{error}"))?;
 
-    let payload = CaptureSuccessPayload {
+    let mut payload = CaptureSuccessPayload {
         path: target_path.to_string_lossy().into_owned(),
         base64: trimmed.to_string(),
         width: request.width,
@@ -323,12 +341,25 @@ async fn finalize_region_capture(
         logical_width: request.logical_width,
         logical_height: request.logical_height,
         created_at: current_timestamp_millis(),
+        ocr_text: None,
     };
+
+    if request.run_ocr {
+        let models_dir = resolve_ocr_models_dir(&app)?;
+        let ocr_target = target_path.clone();
+        let ocr_text =
+            async_runtime::spawn_blocking(move || run_ocr_from_path(&models_dir, &ocr_target))
+                .await
+                .map_err(|error| error.to_string())??;
+        payload.ocr_text = Some(ocr_text);
+    }
 
     app.emit("region-capture-complete", &payload)
         .map_err(|error| error.to_string())?;
 
-    close_overlay_windows(&app);
+    if !request.run_ocr {
+        close_overlay_windows(&app);
+    }
 
     Ok(payload)
 }
@@ -610,6 +641,108 @@ fn dictionary_rect(dictionary: &CFDictionary) -> Option<CGRect> {
 #[cfg(not(target_os = "macos"))]
 fn collect_window_snap_targets() -> Result<Vec<WindowSnapTarget>, String> {
     Ok(Vec::new())
+}
+
+fn run_ocr_from_path(models_dir: &Path, image_path: &Path) -> Result<String, String> {
+    if !image_path.exists() {
+        return Err("截图文件不存在，无法执行 OCR。".into());
+    }
+
+    let det_model = models_dir.join(OCR_DET_MODEL);
+    let rec_model = models_dir.join(OCR_REC_MODEL);
+    let cls_model = models_dir.join(OCR_CLS_MODEL);
+
+    for path in [&det_model, &rec_model, &cls_model] {
+        let display_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| path.to_string_lossy().into_owned());
+        if !path.exists() {
+            return Err(format!("缺少 OCR 模型文件：{display_name}"));
+        }
+    }
+
+    let mut guard = OCR_ENGINE
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+        .map_err(|_| "OCR 引擎正忙，请稍后再试。".to_string())?;
+
+    if guard.is_none() {
+        let det_path = det_model.to_string_lossy().into_owned();
+        let cls_path = cls_model.to_string_lossy().into_owned();
+        let rec_path = rec_model.to_string_lossy().into_owned();
+
+        let mut engine = OcrLite::new();
+        engine
+            .init_models(&det_path, &cls_path, &rec_path, OCR_DEFAULT_THREADS)
+            .map_err(|error| format!("初始化 OCR 模型失败：{error}"))?;
+        *guard = Some(engine);
+    }
+
+    let image_path_string = image_path.to_string_lossy().into_owned();
+    let engine = guard
+        .as_mut()
+        .ok_or_else(|| "OCR 引擎初始化失败，请重试。".to_string())?;
+
+    let detection = engine
+        .detect_from_path(
+            &image_path_string,
+            OCR_PADDING,
+            OCR_MAX_SIDE_LEN,
+            OCR_BOX_SCORE_THRESH,
+            OCR_BOX_THRESH,
+            OCR_UNCLIP_RATIO,
+            true,
+            true,
+        )
+        .map_err(|error| format!("OCR 识别失败：{error}"))?;
+
+    let lines: Vec<String> = detection
+        .text_blocks
+        .into_iter()
+        .map(|block| block.text.trim().to_string())
+        .filter(|text| !text.is_empty())
+        .collect();
+
+    if lines.is_empty() {
+        Ok(String::new())
+    } else {
+        Ok(lines.join("\n"))
+    }
+}
+
+fn resolve_ocr_models_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Ok(path) = app.path().resolve("ocr_models", BaseDirectory::Resource) {
+        candidates.push(path);
+    }
+
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        candidates.push(resource_dir.join("ocr_models"));
+    }
+
+    if let Ok(current_dir) = env::current_dir() {
+        candidates.push(current_dir.join("src-tauri/resources/ocr_models"));
+        candidates.push(current_dir.join("resources/ocr_models"));
+    }
+
+    if let Ok(exe_path) = env::current_exe() {
+        if let Some(parent) = exe_path.parent() {
+            candidates.push(parent.join("../Resources/ocr_models"));
+            candidates.push(parent.join("../lib/ocr_models"));
+            candidates.push(parent.join("ocr_models"));
+        }
+    }
+
+    for candidate in candidates {
+        if candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+
+    Err("未找到 OCR 模型目录，请确保 resources/ocr_models 已打包到应用中。".into())
 }
 
 fn temporary_file_path() -> PathBuf {
