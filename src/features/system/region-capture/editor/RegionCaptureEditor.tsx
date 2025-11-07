@@ -55,8 +55,10 @@ export function RegionCaptureEditor({
   const pointerActiveRef = useRef(false);
   const isInline = mode === "inline";
   const [operations, setOperations] = useState<DrawOperation[]>([]);
-  const [draftOperation, setDraftOperation] = useState<DrawOperation | null>(null);
+  const operationsRef = useRef<DrawOperation[]>([]);
   const draftRef = useRef<DrawOperation | null>(null);
+  const [hasDraftOperation, setHasDraftOperation] = useState(false);
+  const nextFrameRef = useRef<number | null>(null);
   const [tool, setTool] = useState<EditorTool>(initialTool);
   const [strokeColor, setStrokeColor] = useState(initialStrokeColor ?? COLOR_CHOICES[0]);
   const [strokeWidth, setStrokeWidth] = useState<number>(initialStrokeWidth ?? 4);
@@ -345,17 +347,40 @@ export function RegionCaptureEditor({
     }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-    operations.forEach((operation) => {
+    operationsRef.current.forEach((operation) => {
       drawOperation(ctx, operation, image, helperCanvasRef);
     });
-    if (draftOperation) {
-      drawOperation(ctx, draftOperation, image, helperCanvasRef);
+    if (draftRef.current) {
+      drawOperation(ctx, draftRef.current, image, helperCanvasRef);
     }
-  }, [draftOperation, operations]);
+  }, []);
+
+  const requestRender = useCallback(() => {
+    renderCanvas();
+    if (nextFrameRef.current !== null) {
+      return;
+    }
+    const schedule = typeof window !== "undefined" && typeof window.requestAnimationFrame === "function"
+      ? window.requestAnimationFrame.bind(window)
+      : ((callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 16));
+    nextFrameRef.current = schedule(() => {
+      nextFrameRef.current = null;
+      renderCanvas();
+    }) as number;
+  }, [renderCanvas]);
 
   useEffect(() => {
-    renderCanvas();
-  }, [operations, draftOperation, renderCanvas]);
+    operationsRef.current = operations;
+    requestRender();
+  }, [operations, requestRender]);
+
+  useEffect(() => {
+    return () => {
+      if (nextFrameRef.current !== null) {
+        cancelAnimationFrame(nextFrameRef.current);
+      }
+    };
+  }, []);
 
   const startPointRef = useRef<Point | null>(null);
 
@@ -454,10 +479,11 @@ export function RegionCaptureEditor({
         default:
           break;
       }
-      setDraftOperation(nextDraft);
       draftRef.current = nextDraft;
+      setHasDraftOperation(Boolean(nextDraft));
+      requestRender();
     },
-    [mosaicSize, strokeColor, strokeWidth, toCanvasPoint, tool, isExporting]
+    [mosaicSize, strokeColor, strokeWidth, toCanvasPoint, tool, isExporting, requestRender]
   );
 
   const handlePointerMove = useCallback(
@@ -467,45 +493,45 @@ export function RegionCaptureEditor({
       }
       event.preventDefault();
       const position = toCanvasPoint(event);
-      setDraftOperation((previous) => {
-        if (!previous) {
-          return previous;
+      const previous = draftRef.current;
+      if (!previous) {
+        return;
+      }
+      switch (previous.kind) {
+        case "line":
+        case "rectangle":
+        case "circle":
+        case "arrow":
+          draftRef.current = {
+            ...previous,
+            end: position
+          };
+          break;
+        case "pen": {
+          const points = [...previous.points, position];
+          draftRef.current = {
+            ...previous,
+            points
+          };
+          break;
         }
-        switch (previous.kind) {
-          case "line":
-          case "rectangle":
-          case "circle":
-          case "arrow":
-            draftRef.current = {
-              ...previous,
-              end: position
-            };
-            return draftRef.current;
-          case "pen": {
-            const points = [
-              ...previous.points,
-              position
-            ];
-            draftRef.current = {
-              ...previous,
-              points
-            };
-            return draftRef.current;
+        case "mosaic": {
+          const points = maybeAppendPoint(previous.points, position, previous.size / 3);
+          if (points === previous.points) {
+            return;
           }
-          case "mosaic": {
-            const points = maybeAppendPoint(previous.points, position, previous.size / 3);
-            draftRef.current = {
-              ...previous,
-              points
-            };
-            return draftRef.current;
-          }
-          default:
-            return previous;
+          draftRef.current = {
+            ...previous,
+            points
+          };
+          break;
         }
-      });
+        default:
+          break;
+      }
+      requestRender();
     },
-    [toCanvasPoint]
+    [toCanvasPoint, requestRender]
   );
 
   const handlePointerUp = useCallback(
@@ -529,11 +555,12 @@ export function RegionCaptureEditor({
       if (finalized) {
         setOperations((prev) => [...prev, finalized]);
       }
-      setDraftOperation(null);
       draftRef.current = null;
+      setHasDraftOperation(false);
+      requestRender();
       startPointRef.current = null;
     },
-    []
+    [requestRender]
   );
 
   useEffect(() => {
@@ -559,10 +586,6 @@ export function RegionCaptureEditor({
       canvas.removeEventListener("pointercancel", cancel);
     };
   }, [handlePointerDown, handlePointerMove, handlePointerUp]);
-
-  useEffect(() => {
-    draftRef.current = draftOperation;
-  }, [draftOperation]);
 
   const confirmTextEntry = useCallback(() => {
     setTextEntry((current) => {
@@ -609,14 +632,18 @@ export function RegionCaptureEditor({
 
   const handleUndo = useCallback(() => {
     setOperations((prev) => prev.slice(0, -1));
-    setDraftOperation(null);
-  }, []);
+    draftRef.current = null;
+    setHasDraftOperation(false);
+    requestRender();
+  }, [requestRender]);
 
   const handleReset = useCallback(() => {
     setOperations([]);
-    setDraftOperation(null);
+    draftRef.current = null;
+    setHasDraftOperation(false);
     setTextEntry(null);
-  }, []);
+    requestRender();
+  }, [requestRender]);
 
   const handleConfirm = useCallback(async () => {
     const canvas = canvasRef.current;
@@ -674,8 +701,8 @@ export function RegionCaptureEditor({
       strokeWidth,
       mosaicSize,
       textSize,
-      canUndo: operations.length > 0 || Boolean(draftOperation),
-      canReset: operations.length > 0 || Boolean(draftOperation) || Boolean(textEntry),
+      canUndo: operations.length > 0 || hasDraftOperation,
+      canReset: operations.length > 0 || hasDraftOperation || Boolean(textEntry),
       isExporting,
       setTool,
       setStrokeColor,
@@ -692,7 +719,7 @@ export function RegionCaptureEditor({
       onToolbarBridgeChange?.(null);
     };
   }, [
-    draftOperation,
+    hasDraftOperation,
     handleConfirm,
     handleReset,
     handleUndo,
@@ -737,7 +764,7 @@ export function RegionCaptureEditor({
         textSize={textSize}
         onTextSizeChange={setTextSize}
         operationsCount={operations.length}
-        hasDraftOperation={Boolean(draftOperation)}
+        hasDraftOperation={hasDraftOperation}
         isExporting={isExporting}
         onUndo={handleUndo}
         onReset={handleReset}
@@ -765,8 +792,8 @@ export function RegionCaptureEditor({
       onMosaicSizeChange={setMosaicSize}
       textSize={textSize}
       onTextSizeChange={setTextSize}
-      operationsCount={operations.length}
-      hasDraftOperation={Boolean(draftOperation)}
+        operationsCount={operations.length}
+        hasDraftOperation={hasDraftOperation}
       isExporting={isExporting}
       onUndo={handleUndo}
       onReset={handleReset}
