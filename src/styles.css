@@ -2,6 +2,96 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes ocr-skeleton-shimmer {
+  0% {
+    transform: translateX(-80%);
+  }
+  55% {
+    transform: translateX(20%);
+  }
+  100% {
+    transform: translateX(110%);
+  }
+}
+
+@keyframes ocr-scan-line {
+  0% {
+    transform: translateY(-140%);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  85% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(140%);
+    opacity: 0;
+  }
+}
+
+@layer utilities {
+  .ocr-skeleton-line {
+    @apply relative overflow-hidden rounded-full;
+  }
+
+  .ocr-skeleton-line::after {
+    content: "";
+    @apply absolute inset-0;
+    background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+    animation: ocr-skeleton-shimmer 1.6s ease-in-out infinite;
+  }
+
+  .ocr-loading-scan {
+    @apply relative overflow-hidden;
+  }
+
+  .ocr-loading-scan::after {
+    content: "";
+    position: absolute;
+    left: 6%;
+    right: 6%;
+    top: -30%;
+    bottom: -30%;
+    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    filter: blur(12px);
+    animation: ocr-scan-line 2.4s ease-in-out infinite;
+    pointer-events: none;
+    mix-blend-mode: screen;
+  }
+
+  .ocr-loading-stripe {
+    border-radius: 999px;
+    height: 10px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.7) 50%, rgba(255, 255, 255, 0) 100%);
+    opacity: 0.25;
+    animation: ocr-skeleton-shimmer 1.8s ease-in-out infinite;
+  }
+
+  .ocr-scroll-area {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.5) transparent;
+  }
+
+  .ocr-scroll-area::-webkit-scrollbar {
+    width: 14px;
+  }
+
+  .ocr-scroll-area::-webkit-scrollbar-track {
+    background: rgba(148, 163, 184, 0.15);
+    border-radius: 999px;
+  }
+
+  .ocr-scroll-area::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(148, 163, 184, 0.9), rgba(99, 102, 241, 0.9));
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+
+}
+
 @layer base {
   :root {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;

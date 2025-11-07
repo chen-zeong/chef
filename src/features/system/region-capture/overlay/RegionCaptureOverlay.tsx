@@ -1,4 +1,6 @@
 import clsx from "clsx";
+import { AnimatePresence, motion } from "framer-motion";
+import { Search } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -107,8 +109,15 @@ export function RegionCaptureOverlay() {
   const [hoverRect, setHoverRect] = useState<(Rect & { id: number; name: string }) | null>(null);
   const [finalizingMode, setFinalizingMode] = useState<"save" | "ocr">("save");
   const [ocrResultText, setOcrResultText] = useState<string | null>(null);
-  const [ocrCopyLabel, setOcrCopyLabel] = useState("复制文字");
+  const [ocrCopyLabel, setOcrCopyLabel] = useState("<Copy />");
+  const [ocrSearchQuery, setOcrSearchQuery] = useState("");
   const ocrCopyTimeoutRef = useRef<number | null>(null);
+  const lineCopyTimeoutRef = useRef<number | null>(null);
+  const [copiedLine, setCopiedLine] = useState<string | null>(null);
+  const ocrSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDarkTheme, setIsDarkTheme] = useState(
+    () => (typeof document !== "undefined" && document.body.classList.contains("theme-dark")) ?? false
+  );
 
   const isEditing = phase === "editing" && captureResult;
   const resetOcrResult = useCallback(() => {
@@ -116,8 +125,9 @@ export function RegionCaptureOverlay() {
       window.clearTimeout(ocrCopyTimeoutRef.current);
       ocrCopyTimeoutRef.current = null;
     }
-    setOcrCopyLabel("复制文字");
+    setOcrCopyLabel("<Copy />");
     setOcrResultText(null);
+    setOcrSearchQuery("");
   }, []);
 
   useEffect(() => {
@@ -125,6 +135,27 @@ export function RegionCaptureOverlay() {
       allow_input_panel: Boolean(isEditing)
     }).catch(() => undefined);
   }, [isEditing]);
+
+  useEffect(() => {
+    if (phase === "ocr-result") {
+      ocrSearchInputRef.current?.focus();
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    const body = document.body;
+    if (!body) {
+      return;
+    }
+    const syncTheme = () => {
+      setIsDarkTheme(body.classList.contains("theme-dark"));
+    };
+    syncTheme();
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(body, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
 
   useLayoutEffect(() => {
     const { classList } = document.body;
@@ -595,6 +626,9 @@ export function RegionCaptureOverlay() {
           setEditorInitialTextSize(intent.textSize);
           setPhase("editing");
         } else {
+          if (intent.runOcr) {
+            resetOcrResult();
+          }
           setFinalizingMode(intent.runOcr ? "ocr" : "save");
           setPhase("finalizing");
           const finalized = await invoke<CaptureSuccessPayload>("finalize_region_capture", {
@@ -930,22 +964,54 @@ export function RegionCaptureOverlay() {
     }
     try {
       await navigator.clipboard.writeText(ocrResultText);
-      setOcrCopyLabel("已复制");
+      setOcrCopyLabel("<Copied />");
     } catch {
-      setOcrCopyLabel("复制失败");
+      setOcrCopyLabel("<Failed />");
     }
     if (ocrCopyTimeoutRef.current) {
       window.clearTimeout(ocrCopyTimeoutRef.current);
     }
     ocrCopyTimeoutRef.current = window.setTimeout(() => {
-      setOcrCopyLabel("复制文字");
+      setOcrCopyLabel("<Copy />");
       ocrCopyTimeoutRef.current = null;
     }, 2000);
   }, [ocrResultText]);
 
-  const handleCloseAfterOcr = useCallback(() => {
-    void handleCancel();
-  }, [handleCancel]);
+  const handleCopyLine = useCallback((line: string) => {
+    if (!line.trim()) {
+      return;
+    }
+    void navigator.clipboard.writeText(line).catch(() => undefined);
+    setCopiedLine(line);
+    if (lineCopyTimeoutRef.current) {
+      window.clearTimeout(lineCopyTimeoutRef.current);
+    }
+    lineCopyTimeoutRef.current = window.setTimeout(() => {
+      setCopiedLine(null);
+      lineCopyTimeoutRef.current = null;
+    }, 1500);
+  }, []);
+
+  const handleDismissOcrPanel = useCallback(() => {
+    resetOcrResult();
+    setOcrCopyLabel("复制文字");
+    setCopiedLine(null);
+    setFinalizingMode("save");
+    setCaptureResult(null);
+    setCapturedRect(null);
+    setInteraction(null);
+    setError(null);
+    const hasSelection = Boolean(selectionRef.current);
+    setPhase(hasSelection ? "selected" : "idle");
+  }, [resetOcrResult]);
+
+  useEffect(() => {
+    return () => {
+      if (lineCopyTimeoutRef.current) {
+        window.clearTimeout(lineCopyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (phase === "editing" && editorBridge) {
@@ -1131,6 +1197,113 @@ export function RegionCaptureOverlay() {
     : undefined;
 
   const inlineRect = capturedRect;
+  const showOcrPanel =
+    (phase === "finalizing" && finalizingMode === "ocr") || phase === "ocr-result";
+  const isOcrLoading = phase === "finalizing" && finalizingMode === "ocr";
+  const normalizedOcrSearch = ocrSearchQuery.trim();
+  const normalizedOcrSearchLower = normalizedOcrSearch.toLowerCase();
+  const ocrPanelClasses = useMemo(
+    () => ({
+      panel: clsx(
+        "w-full max-w-[720px] rounded-[26px] border backdrop-blur-2xl transition-[background-color,border-color,box-shadow] duration-300",
+        isDarkTheme
+          ? "border-[rgba(255,255,255,0.08)] bg-[rgba(18,19,24,0.88)] text-white shadow-[0_40px_120px_rgba(0,0,0,0.55)]"
+          : "border-[rgba(15,23,42,0.08)] bg-[rgba(255,255,255,0.97)] text-[rgba(18,25,38,0.95)] shadow-[0_32px_90px_rgba(15,23,42,0.16)]"
+      ),
+      heading: isDarkTheme ? "text-white" : "text-[rgba(17,27,45,0.95)]",
+      subheading: isDarkTheme ? "text-white/65" : "text-[rgba(17,27,45,0.62)]",
+      pill: clsx(
+        "rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
+        isDarkTheme
+          ? "border-white/12 text-white/70"
+          : "border-[rgba(17,27,45,0.12)] text-[rgba(17,27,45,0.55)]"
+      ),
+      searchFloating: clsx(
+        "inline-flex items-center gap-2 rounded-full border px-3 py-1 backdrop-blur-md transition",
+        isDarkTheme
+          ? "border-white/12 bg-[rgba(28,30,38,0.65)]"
+          : "border-[rgba(17,27,45,0.14)] bg-[rgba(255,255,255,0.9)] shadow-[0_4px_10px_rgba(15,23,42,0.08)]"
+      ),
+      searchInput: clsx(
+        "bg-transparent text-xs focus:outline-none",
+        isDarkTheme ? "text-white placeholder:text-white/50" : "text-[rgba(17,27,45,0.85)] placeholder:text-[rgba(17,27,45,0.45)]"
+      ),
+      searchClear: clsx(
+        "rounded-full px-1.5 text-base leading-none transition",
+        isDarkTheme ? "text-white/60 hover:text-white/90" : "text-[rgba(17,27,45,0.45)] hover:text-[rgba(17,27,45,0.75)]"
+      ),
+      actionCopy: clsx(
+        "rounded-xl border px-3.5 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-60",
+        isDarkTheme
+          ? "border-white/18 text-white hover:border-white/35 hover:bg-white/10 disabled:border-white/10"
+          : "border-[rgba(59,130,246,0.4)] text-[rgba(37,99,235,0.95)] hover:border-[rgba(37,99,235,0.75)] hover:bg-[rgba(59,130,246,0.08)] disabled:border-[rgba(148,163,184,0.4)] disabled:text-[rgba(148,163,184,0.9)]"
+      ),
+      surface: clsx(
+        "rounded-[20px] border px-0 py-3 text-sm leading-6 transition",
+        isDarkTheme
+          ? "border-white/8 bg-white/[0.07] text-white/90"
+          : "border-[rgba(15,23,42,0.05)] bg-[rgba(247,249,254,0.95)] text-[rgba(17,27,45,0.85)]"
+      ),
+      listItem: clsx(
+        "flex items-start justify-between gap-2 border-b px-4 py-1.5 text-[13px]",
+        isDarkTheme
+          ? "border-white/8 text-white/90"
+          : "border-[rgba(15,23,42,0.08)] text-[rgba(15,23,42,0.9)]"
+      ),
+      lineCopy: clsx(
+        "rounded-full border px-2 py-0.5 text-[11px] font-medium transition font-mono",
+        isDarkTheme
+          ? "border-white/18 text-white/80 hover:bg-white/10"
+          : "border-[rgba(37,99,235,0.4)] text-[rgba(37,99,235,0.9)] hover:bg-[rgba(59,130,246,0.08)]"
+      ),
+      noResult: isDarkTheme ? "text-white/60" : "text-[rgba(17,27,45,0.55)]",
+      closeButton: clsx(
+        "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+        isDarkTheme
+          ? "border-white/20 text-white/80 hover:bg-white/10"
+          : "border-[rgba(17,27,45,0.14)] text-[rgba(17,27,45,0.7)] hover:bg-[rgba(17,27,45,0.05)]"
+      )
+    }),
+    [isDarkTheme]
+  );
+  const ocrLines = useMemo(() => {
+    if (!ocrResultText) {
+      return [];
+    }
+    return ocrResultText
+      .split(/\r?\n/)
+      .map((line) => line.replace(/\s+$/, ""))
+      .filter((line) => line.length > 0);
+  }, [ocrResultText]);
+  const filteredOcrLines = useMemo(() => {
+    if (!normalizedOcrSearchLower) {
+      return ocrLines;
+    }
+    return ocrLines.filter((line) => line.toLowerCase().includes(normalizedOcrSearchLower));
+  }, [normalizedOcrSearchLower, ocrLines]);
+  const renderHighlightedLine = useCallback(
+    (line: string, lineIndex: number): ReactNode => {
+      if (!normalizedOcrSearch) {
+        return line;
+      }
+      const regex = new RegExp(`(${escapeRegExp(normalizedOcrSearch)})`, "gi");
+      const segments = line.split(regex);
+      return segments.map((segment, index) =>
+        index % 2 === 1 ? (
+          <span
+            key={`match-${lineIndex}-${index}`}
+            className="rounded bg-white/30 px-1 text-white"
+          >
+            {segment}
+          </span>
+        ) : (
+          <span key={`text-${lineIndex}-${index}`}>{segment}</span>
+        )
+      );
+    },
+    [normalizedOcrSearch]
+  );
+  const hasFilteredResults = filteredOcrLines.length > 0;
   const toolbarAnchorRect =
     phase === "editing" && capturedRect ? capturedRect : activeRect;
   const toolbarAnchorCenter =
@@ -1258,54 +1431,152 @@ export function RegionCaptureOverlay() {
         )
       )}
 
-      {phase === "finalizing" && (
+      {phase === "finalizing" && finalizingMode === "save" && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-medium text-white">
-          {finalizingMode === "ocr" ? "正在保存并识别文字…" : "正在保存编辑结果…"}
+          正在保存编辑结果…
         </div>
       )}
 
-      {phase === "ocr-result" && (
-        <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-[rgba(7,12,22,0.85)] px-4 py-6 backdrop-blur-md">
-          <div className="w-[min(640px,94vw)] rounded-3xl bg-white/95 p-6 text-[rgba(15,23,42,0.92)] shadow-2xl">
-            <h3 className="mb-3 text-lg font-semibold text-[rgba(15,23,42,0.97)]">OCR 识别结果</h3>
-            <div className="mb-4 max-h-[360px] overflow-y-auto rounded-2xl border border-[rgba(15,23,42,0.08)] bg-[rgba(247,249,253,0.96)] p-4 text-sm leading-6 text-[rgba(30,41,59,0.92)]">
-              {hasOcrResultText ? (
-                <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-6">
-                  {ocrResultText}
-                </pre>
+      <AnimatePresence initial={false}>
+        {showOcrPanel && (
+          <motion.div
+            className="pointer-events-auto absolute inset-x-0 bottom-4 z-40 flex justify-center px-4"
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.95 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+          >
+            <motion.div
+              className={clsx(ocrPanelClasses.panel, isOcrLoading && "ocr-loading-scan")}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              {isOcrLoading ? (
+                <div className="px-6 py-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className={clsx("flex items-center gap-3 text-sm font-semibold", ocrPanelClasses.heading)}>
+                      <span className="relative inline-flex h-3 w-3">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400/60" />
+                        <span className="relative inline-flex h-3 w-3 rounded-full bg-blue-300" />
+                      </span>
+                      正在识别 OCR 文本…
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className={ocrPanelClasses.pill}>智能加速</span>
+                      <span className={ocrPanelClasses.pill}>图像预处理</span>
+                      <button type="button" className={ocrPanelClasses.closeButton} onClick={handleDismissOcrPanel}>
+                        关闭
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {[0, 1, 2, 3, 4].map((index) => (
+                      <div key={`ocr-loading-stripe-${index}`} className="ocr-loading-stripe" style={{ animationDelay: `${index * 120}ms` }} />
+                    ))}
+                  </div>
+                </div>
               ) : (
-                <span className="text-[rgba(15,23,42,0.5)]">未识别到文字</span>
+                <div className="flex flex-col gap-4 px-6 py-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className={clsx("text-sm font-semibold", ocrPanelClasses.heading)}>OCR 识别结果</p>
+                      <label className={ocrPanelClasses.searchFloating}>
+                        <Search size={14} strokeWidth={1.8} className={isDarkTheme ? "text-white/65" : "text-[rgba(17,27,45,0.55)]"} />
+                        <input
+                          ref={ocrSearchInputRef}
+                          type="search"
+                          inputMode="search"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          className={ocrPanelClasses.searchInput}
+                          aria-label="搜索识别结果"
+                          placeholder=""
+                          value={ocrSearchQuery}
+                          onChange={(event) => setOcrSearchQuery(event.target.value)}
+                        />
+                        {ocrSearchQuery && (
+                          <button
+                            type="button"
+                            className={ocrPanelClasses.searchClear}
+                            onClick={() => setOcrSearchQuery("")}
+                            aria-label="清空搜索"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </label>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                      {normalizedOcrSearch && hasOcrResultText && hasFilteredResults && (
+                        <span className={ocrPanelClasses.pill}>筛选中</span>
+                      )}
+                      {!hasFilteredResults && hasOcrResultText && normalizedOcrSearch && (
+                        <span
+                          className={clsx(
+                            ocrPanelClasses.pill,
+                            "border-red-200/50 text-red-200",
+                            !isDarkTheme && "border-[rgba(248,113,113,0.4)] text-[rgba(185,28,28,0.85)]"
+                          )}
+                        >
+                          未匹配
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className={ocrPanelClasses.actionCopy}
+                        onClick={handleCopyOcrResult}
+                        disabled={!hasOcrResultText}
+                      >
+                        {ocrCopyLabel}
+                      </button>
+                      <button type="button" className={ocrPanelClasses.closeButton} onClick={handleDismissOcrPanel}>
+                        关闭
+                      </button>
+                    </div>
+                  </div>
+                  <div className={clsx("ocr-scroll-area max-h-[360px] overflow-y-auto text-sm leading-6", ocrPanelClasses.surface)}>
+                    {hasOcrResultText ? (
+                      hasFilteredResults ? (
+                        <div>
+                          {filteredOcrLines.map((line, lineIndex) => (
+                            <div key={`ocr-line-${lineIndex}-${line}`} className={ocrPanelClasses.listItem}>
+                              <div className="min-w-0 flex-1 break-words">{renderHighlightedLine(line, lineIndex)}</div>
+                              <button
+                                type="button"
+                                className={clsx(
+                                  ocrPanelClasses.lineCopy,
+                                  copiedLine === line &&
+                                    (isDarkTheme
+                                      ? "border-white/25 bg-white/15 text-[rgba(17,27,45,0.9)]"
+                                      : "border-transparent bg-[rgba(15,23,42,0.06)] text-[rgba(17,27,45,0.85)]")
+                                )}
+                                onClick={() => handleCopyLine(line)}
+                              >
+                                {copiedLine === line ? "<Copied />" : "<Copy />"}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className={clsx("flex h-32 items-center justify-center", ocrPanelClasses.noResult)}>
+                          未找到匹配结果
+                        </div>
+                      )
+                    ) : (
+                      <div className={clsx("flex h-32 items-center justify-center", ocrPanelClasses.noResult)}>
+                        未识别到文字
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <button
-                type="button"
-                className="rounded-xl border border-transparent px-4 py-2 text-sm font-medium text-[rgba(15,23,42,0.72)] transition hover:bg-[rgba(15,23,42,0.06)]"
-                onClick={() => {
-                  void handleCancel();
-                }}
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                className="rounded-xl border border-[rgba(59,130,246,0.45)] px-4 py-2 text-sm font-medium text-[rgba(37,99,235,0.95)] transition hover:bg-[rgba(59,130,246,0.08)] disabled:cursor-not-allowed disabled:border-[rgba(148,163,184,0.4)] disabled:text-[rgba(148,163,184,0.9)] disabled:hover:bg-transparent"
-                onClick={handleCopyOcrResult}
-                disabled={!hasOcrResultText}
-              >
-                {ocrCopyLabel}
-              </button>
-              <button
-                type="button"
-                className="rounded-xl bg-[rgba(15,23,42,0.92)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[rgba(15,23,42,0.85)]"
-                onClick={handleCloseAfterOcr}
-              >
-                完成
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {isEditing && captureResult && inlineRect && (
         <div className="pointer-events-none absolute inset-0 z-10">
@@ -1377,4 +1648,8 @@ function rectIntersectionArea(a: Rect, b: Rect) {
   const width = Math.max(0, right - left);
   const height = Math.max(0, bottom - top);
   return width * height;
+}
+
+function escapeRegExp(input: string) {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

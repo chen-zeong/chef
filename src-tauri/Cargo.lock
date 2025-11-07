@@ -421,6 +421,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-core-foundation",
  "objc2-core-graphics",
+ "ort",
  "paddle-ocr-rs",
  "serde",
  "serde_json",

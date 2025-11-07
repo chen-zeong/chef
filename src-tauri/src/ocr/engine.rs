@@ -1,3 +1,7 @@
+use ort::{
+    session::builder::{GraphOptimizationLevel, SessionBuilder},
+    Error as OrtError,
+};
 use paddle_ocr_rs::ocr_lite::OcrLite;
 use std::{
     env,
@@ -49,9 +53,15 @@ pub fn run_ocr_from_path(models_dir: &Path, image_path: &Path) -> Result<String,
         let rec_path = rec_model.to_string_lossy().into_owned();
 
         let mut engine = OcrLite::new();
-        engine
-            .init_models(&det_path, &cls_path, &rec_path, OCR_DEFAULT_THREADS)
-            .map_err(|error| format!("初始化 OCR 模型失败：{error}"))?;
+        if engine
+            .init_models_custom(&det_path, &cls_path, &rec_path, configure_release_session)
+            .is_err()
+        {
+            engine = OcrLite::new();
+            engine
+                .init_models(&det_path, &cls_path, &rec_path, OCR_DEFAULT_THREADS)
+                .map_err(|error| format!("初始化 OCR 模型失败：{error}"))?;
+        }
         *guard = Some(engine);
     }
 
@@ -99,6 +109,7 @@ pub fn resolve_ocr_models_dir(app: &AppHandle) -> Result<PathBuf, String> {
     }
 
     if let Ok(current_dir) = env::current_dir() {
+        candidates.push(current_dir.join("src-tauri/ocr_models"));
         candidates.push(current_dir.join("src-tauri/resources/ocr_models"));
         candidates.push(current_dir.join("resources/ocr_models"));
     }
@@ -118,4 +129,10 @@ pub fn resolve_ocr_models_dir(app: &AppHandle) -> Result<PathBuf, String> {
     }
 
     Err("未找到 OCR 模型目录，请确保 resources/ocr_models 已打包到应用中。".into())
+}
+
+fn configure_release_session(builder: SessionBuilder) -> Result<SessionBuilder, OrtError> {
+    let builder = builder.with_optimization_level(GraphOptimizationLevel::Level3)?;
+    let builder = builder.with_intra_threads(OCR_DEFAULT_THREADS)?;
+    builder.with_inter_threads(OCR_DEFAULT_THREADS)
 }
