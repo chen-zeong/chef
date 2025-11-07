@@ -15,12 +15,17 @@ export function ScreenshotTool() {
   const [isLaunching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastCapture, setLastCapture] = useState<CaptureSuccessPayload | null>(null);
+  const [hideMainWindow, setHideMainWindow] = useState(true);
 
   const handleStartCapture = async () => {
     setError(null);
     setLaunching(true);
     try {
-      await invoke("show_region_capture_overlay");
+      await invoke("show_region_capture_overlay", {
+        options: {
+          hide_main_window: hideMainWindow
+        }
+      });
     } catch (issue) {
       setError(
         issue instanceof Error ? issue.message : "启动框选窗口失败，请稍后再试。"
@@ -75,6 +80,35 @@ export function ScreenshotTool() {
       <p className={PANEL_DESCRIPTION}>
         点击按钮进入框选模式，拖动鼠标即可选取任意区域，松开后自动生成截图并回传到此处。
       </p>
+
+      <div className="flex items-center justify-between rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-4 py-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-semibold text-[var(--text-primary)]">
+            截图时隐藏主窗口
+          </span>
+          <span className="text-xs text-[var(--text-secondary)]">
+            启动框选前先折叠 Chef，截图完成后会自动恢复回主页面。
+          </span>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={hideMainWindow}
+          aria-label="截图时隐藏主窗口"
+          onClick={() => setHideMainWindow((value) => !value)}
+          className={clsx(
+            "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200",
+            hideMainWindow ? "bg-[var(--accent)]" : "bg-[var(--border-strong)]"
+          )}
+        >
+          <span
+            className={clsx(
+              "inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200",
+              hideMainWindow ? "translate-x-5" : "translate-x-1"
+            )}
+          />
+        </button>
+      </div>
 
       <motion.button
         type="button"

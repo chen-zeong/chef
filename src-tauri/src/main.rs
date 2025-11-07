@@ -8,14 +8,13 @@ use objc2_core_graphics::{
 };
 use serde::{Deserialize, Serialize};
 #[cfg(target_os = "macos")]
-use std::{
-    ffi::c_void,
-    sync::{Mutex, OnceLock},
-};
+use std::ffi::c_void;
+#[cfg(target_os = "macos")]
+use std::process::Command;
 use std::{
     fs,
     path::PathBuf,
-    process::Command,
+    sync::{Mutex, OnceLock},
     time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::{
@@ -85,12 +84,23 @@ struct WindowSnapTarget {
     name: String,
 }
 
+#[derive(Debug, Deserialize, Default)]
+struct RegionCaptureLaunchOptions {
+    #[serde(default)]
+    #[serde(alias = "hideMainWindow")]
+    hide_main_window: bool,
+}
+
 fn default_scale() -> f64 {
     1.0
 }
 
 #[tauri::command]
-async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String> {
+async fn show_region_capture_overlay(
+    window: tauri::WebviewWindow,
+    options: Option<RegionCaptureLaunchOptions>,
+) -> Result<(), String> {
+    let app = window.app_handle();
     let monitors = app
         .available_monitors()
         .map_err(|error| error.to_string())?;
@@ -111,6 +121,9 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
         })
         .unwrap_or(0.0);
 
+    let launch_options = options.unwrap_or_default();
+    let should_hide_main = launch_options.hide_main_window;
+    maybe_hide_invoker_window(&app, &window, should_hide_main)?;
     apply_overlay_presentation(true);
     let init_result = (|| -> Result<(), String> {
         let desired_labels: Vec<String> = (0..monitors.len())
@@ -184,19 +197,22 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
                 primary_monitor_height
             );
 
-            let window =
-                WebviewWindowBuilder::new(&app, label.as_str(), WebviewUrl::App(url.into()))
-                    .title("Region Capture Overlay")
-                    .transparent(true)
-                    .decorations(false)
-                    .resizable(false)
-                    .always_on_top(true)
-                    .skip_taskbar(true)
-                    .position(logical_x, logical_y)
-                    .inner_size(logical_width, logical_height)
-                    .visible(true)
-                    .build()
-                    .map_err(|error| error.to_string())?;
+            let window = WebviewWindowBuilder::<_, tauri::AppHandle>::new(
+                &app,
+                label.as_str(),
+                WebviewUrl::App(url.into()),
+            )
+            .title("Region Capture Overlay")
+            .transparent(true)
+            .decorations(false)
+            .resizable(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .position(logical_x, logical_y)
+            .inner_size(logical_width, logical_height)
+            .visible(true)
+            .build()
+            .map_err(|error| error.to_string())?;
 
             window
                 .set_background_color(Some(Color(0, 0, 0, 0)))
@@ -233,6 +249,7 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
         if overlay_labels(&app).is_empty() {
             apply_overlay_presentation(false);
         }
+        restore_hidden_window_if_needed(&app);
         return Err(error);
     }
 
@@ -600,6 +617,47 @@ fn temporary_file_path() -> PathBuf {
     std::env::temp_dir().join(format!("chef-region-{now}.png"))
 }
 
+fn hidden_window_label_slot() -> &'static Mutex<Option<String>> {
+    static FLAG: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+    FLAG.get_or_init(|| Mutex::new(None))
+}
+
+fn maybe_hide_invoker_window(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    should_hide: bool,
+) -> Result<(), String> {
+    if !should_hide {
+        return Ok(());
+    }
+
+    let target = app
+        .get_webview_window("main")
+        .unwrap_or_else(|| window.clone());
+    let label = target.label().to_string();
+
+    target.hide().map_err(|error| error.to_string())?;
+    if let Ok(mut slot) = hidden_window_label_slot().lock() {
+        *slot = Some(label);
+    }
+
+    Ok(())
+}
+
+fn restore_hidden_window_if_needed(app: &tauri::AppHandle) {
+    let label = match hidden_window_label_slot().lock() {
+        Ok(mut slot) => slot.take(),
+        Err(_) => None,
+    };
+
+    if let Some(label) = label {
+        if let Some(window) = app.get_webview_window(label.as_str()) {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+}
+
 fn overlay_labels(app: &tauri::AppHandle) -> Vec<String> {
     app.webview_windows()
         .keys()
@@ -616,6 +674,7 @@ fn close_overlay_windows(app: &tauri::AppHandle) {
     }
 
     apply_overlay_presentation(false);
+    restore_hidden_window_if_needed(app);
 }
 
 fn main() {
