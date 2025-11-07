@@ -1,26 +1,26 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(target_os = "macos")]
+use objc2_core_foundation::{CFDictionary, CFNumber, CFString, CGRect};
+#[cfg(target_os = "macos")]
+use objc2_core_graphics::{
+    CGRectMakeWithDictionaryRepresentation, CGWindowListCopyWindowInfo, CGWindowListOption,
+};
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "macos")]
+use std::{
+    ffi::c_void,
+    sync::{Mutex, OnceLock},
+};
 use std::{
     fs,
     path::PathBuf,
     process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
-#[cfg(target_os = "macos")]
-use std::sync::{Mutex, OnceLock};
 use tauri::{
-    async_runtime,
-    window::Color,
-    Emitter,
-    LogicalPosition,
-    LogicalSize,
-    Manager,
-    Position,
-    Size,
-    WebviewUrl,
-    WebviewWindow,
-    WebviewWindowBuilder,
+    async_runtime, window::Color, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size,
+    WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 
 #[cfg(target_os = "macos")]
@@ -72,6 +72,17 @@ struct OverlayMetadata {
     logical_origin_y: f64,
     logical_width: f64,
     logical_height: f64,
+    primary_height: f64,
+}
+
+#[derive(Debug, Serialize)]
+struct WindowSnapTarget {
+    id: u32,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    name: String,
 }
 
 fn default_scale() -> f64 {
@@ -88,6 +99,18 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
         return Err("未能获取显示器信息".into());
     }
 
+    let primary_monitor_height = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|monitor| monitor.size().height as f64 / monitor.scale_factor())
+        .or_else(|| {
+            monitors
+                .get(0)
+                .map(|monitor| monitor.size().height as f64 / monitor.scale_factor())
+        })
+        .unwrap_or(0.0);
+
     apply_overlay_presentation(true);
     let init_result = (|| -> Result<(), String> {
         let desired_labels: Vec<String> = (0..monitors.len())
@@ -100,11 +123,7 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
             })
             .collect();
 
-        for (index, (label, monitor)) in desired_labels
-            .iter()
-            .zip(monitors.iter())
-            .enumerate()
-        {
+        for (index, (label, monitor)) in desired_labels.iter().zip(monitors.iter()).enumerate() {
             let size = *monitor.size();
             let position = *monitor.position();
             let scale_factor = monitor.scale_factor();
@@ -127,6 +146,7 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
                 logical_origin_y: logical_y,
                 logical_width,
                 logical_height,
+                primary_height: primary_monitor_height,
             };
 
             if let Some(existing) = app.get_webview_window(label) {
@@ -145,15 +165,13 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
                 let _ = app.emit_to(label, "overlay-metadata", &metadata);
 
                 if index == 0 {
-                    existing
-                        .set_focus()
-                        .map_err(|error| error.to_string())?;
+                    existing.set_focus().map_err(|error| error.to_string())?;
                 }
                 continue;
             }
 
             let url = format!(
-                "/index.html?window=overlay&origin_x={}&origin_y={}&width={}&height={}&scale={}&logical_origin_x={}&logical_origin_y={}&logical_width={}&logical_height={}",
+                "/index.html?window=overlay&origin_x={}&origin_y={}&width={}&height={}&scale={}&logical_origin_x={}&logical_origin_y={}&logical_width={}&logical_height={}&primary_height={}",
                 position.x,
                 position.y,
                 size.width,
@@ -162,21 +180,23 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
                 logical_x,
                 logical_y,
                 logical_width,
-                logical_height
+                logical_height,
+                primary_monitor_height
             );
 
-            let window = WebviewWindowBuilder::new(&app, label.as_str(), WebviewUrl::App(url.into()))
-                .title("Region Capture Overlay")
-                .transparent(true)
-                .decorations(false)
-                .resizable(false)
-                .always_on_top(true)
-                .skip_taskbar(true)
-                .position(logical_x, logical_y)
-                .inner_size(logical_width, logical_height)
-                .visible(true)
-                .build()
-                .map_err(|error| error.to_string())?;
+            let window =
+                WebviewWindowBuilder::new(&app, label.as_str(), WebviewUrl::App(url.into()))
+                    .title("Region Capture Overlay")
+                    .transparent(true)
+                    .decorations(false)
+                    .resizable(false)
+                    .always_on_top(true)
+                    .skip_taskbar(true)
+                    .position(logical_x, logical_y)
+                    .inner_size(logical_width, logical_height)
+                    .visible(true)
+                    .build()
+                    .map_err(|error| error.to_string())?;
 
             window
                 .set_background_color(Some(Color(0, 0, 0, 0)))
@@ -187,9 +207,7 @@ async fn show_region_capture_overlay(app: tauri::AppHandle) -> Result<(), String
             let _ = app.emit_to(label, "overlay-metadata", &metadata);
 
             if index == 0 {
-                window
-                    .set_focus()
-                    .map_err(|error| error.to_string())?;
+                window.set_focus().map_err(|error| error.to_string())?;
             }
         }
 
@@ -244,10 +262,8 @@ async fn capture_region(
 
     let logical_width = region.width;
     let logical_height = region.height;
-    let physical_width =
-        ((region.width as f64) * region.scale_x).round().max(1.0) as u32;
-    let physical_height =
-        ((region.height as f64) * region.scale_y).round().max(1.0) as u32;
+    let physical_width = ((region.width as f64) * region.scale_x).round().max(1.0) as u32;
+    let physical_height = ((region.height as f64) * region.scale_y).round().max(1.0) as u32;
 
     let payload = CaptureSuccessPayload {
         path: capture_result.path.to_string_lossy().into_owned(),
@@ -280,8 +296,7 @@ async fn finalize_region_capture(
         .map_err(|error| format!("解析截图数据失败：{error}"))?;
 
     let target_path = PathBuf::from(&request.path);
-    fs::write(&target_path, &bytes)
-        .map_err(|error| format!("保存截图文件失败：{error}"))?;
+    fs::write(&target_path, &bytes).map_err(|error| format!("保存截图文件失败：{error}"))?;
 
     let payload = CaptureSuccessPayload {
         path: target_path.to_string_lossy().into_owned(),
@@ -307,6 +322,11 @@ async fn set_current_window_always_on_top(
     allow_input_panel: bool,
 ) -> Result<(), String> {
     apply_window_level(&window, allow_input_panel)
+}
+
+#[tauri::command]
+async fn list_window_snap_targets() -> Result<Vec<WindowSnapTarget>, String> {
+    collect_window_snap_targets()
 }
 
 struct CaptureOutput {
@@ -345,8 +365,7 @@ fn capture_region_internal(region: &CaptureRegion) -> Result<CaptureOutput, Stri
         return Err(format!("系统截图工具执行失败，退出码：{}", status));
     }
 
-    let bytes = fs::read(&target_path)
-        .map_err(|error| format!("读取截图文件失败：{error}"))?;
+    let bytes = fs::read(&target_path).map_err(|error| format!("读取截图文件失败：{error}"))?;
 
     let base64 = BASE64.encode(&bytes);
 
@@ -364,13 +383,11 @@ fn capture_region_internal(_: &CaptureRegion) -> Result<CaptureOutput, String> {
 #[cfg(target_os = "macos")]
 fn apply_window_level(window: &WebviewWindow, allow_input_panel: bool) -> Result<(), String> {
     use objc2_app_kit::{
-        NSColor, NSWindow, NSWindowCollectionBehavior, NSWindowSharingType, NSStatusWindowLevel,
+        NSColor, NSStatusWindowLevel, NSWindow, NSWindowCollectionBehavior, NSWindowSharingType,
     };
 
     unsafe {
-        let ns_ptr = window
-            .ns_window()
-            .map_err(|error| error.to_string())? as *mut NSWindow;
+        let ns_ptr = window.ns_window().map_err(|error| error.to_string())? as *mut NSWindow;
         if let Some(reference) = ns_ptr.as_ref() {
             let target_level = if allow_input_panel {
                 20isize
@@ -452,6 +469,132 @@ fn apply_overlay_presentation(enable: bool) {
 #[cfg(not(target_os = "macos"))]
 fn apply_overlay_presentation(_: bool) {}
 
+#[cfg(target_os = "macos")]
+fn collect_window_snap_targets() -> Result<Vec<WindowSnapTarget>, String> {
+    const MIN_DIMENSION: f64 = 40.0;
+    let options =
+        CGWindowListOption::OptionOnScreenOnly | CGWindowListOption::ExcludeDesktopElements;
+
+    unsafe {
+        let cf_array = match CGWindowListCopyWindowInfo(options, 0) {
+            Some(array) => array,
+            None => return Ok(Vec::new()),
+        };
+        let count = cf_array.count();
+        let current_pid = std::process::id() as i32;
+        let mut targets = Vec::new();
+
+        for index in 0..count {
+            let dict_ptr = cf_array.value_at_index(index) as *const CFDictionary;
+            if dict_ptr.is_null() {
+                continue;
+            }
+            let dictionary = &*dict_ptr;
+
+            if dictionary_number_i32(dictionary, "kCGWindowOwnerPID") == Some(current_pid) {
+                continue;
+            }
+            if dictionary_number_i32(dictionary, "kCGWindowSharingState") == Some(0) {
+                continue;
+            }
+            if dictionary_number_i32(dictionary, "kCGWindowLayer").unwrap_or(0) != 0 {
+                continue;
+            }
+            if dictionary_number_f64(dictionary, "kCGWindowAlpha").unwrap_or(1.0) <= 0.01 {
+                continue;
+            }
+
+            let rect = match dictionary_rect(dictionary) {
+                Some(value) => value,
+                None => continue,
+            };
+
+            if rect.size.width < MIN_DIMENSION || rect.size.height < MIN_DIMENSION {
+                continue;
+            }
+
+            let id = match dictionary_number_i64(dictionary, "kCGWindowNumber") {
+                Some(value) if value >= 0 => value as u32,
+                _ => continue,
+            };
+
+            let name = dictionary_string(dictionary, "kCGWindowName")
+                .filter(|value| !value.trim().is_empty())
+                .or_else(|| dictionary_string(dictionary, "kCGWindowOwnerName"))
+                .unwrap_or_else(|| "窗口".to_string());
+
+            targets.push(WindowSnapTarget {
+                id,
+                x: rect.origin.x as f64,
+                y: rect.origin.y as f64,
+                width: rect.size.width as f64,
+                height: rect.size.height as f64,
+                name,
+            });
+        }
+
+        Ok(targets)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn dictionary_value(dictionary: &CFDictionary, key: &str) -> Option<*const c_void> {
+    unsafe {
+        let cf_key = CFString::from_str(key);
+        let key_ref = cf_key.as_ref() as *const CFString;
+        let value = dictionary.value(key_ref.cast());
+        if value.is_null() {
+            None
+        } else {
+            Some(value)
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn dictionary_number_i32(dictionary: &CFDictionary, key: &str) -> Option<i32> {
+    let ptr = dictionary_value(dictionary, key)? as *const CFNumber;
+    unsafe { ptr.as_ref()?.as_i32() }
+}
+
+#[cfg(target_os = "macos")]
+fn dictionary_number_i64(dictionary: &CFDictionary, key: &str) -> Option<i64> {
+    let ptr = dictionary_value(dictionary, key)? as *const CFNumber;
+    unsafe { ptr.as_ref()?.as_i64() }
+}
+
+#[cfg(target_os = "macos")]
+fn dictionary_number_f64(dictionary: &CFDictionary, key: &str) -> Option<f64> {
+    let ptr = dictionary_value(dictionary, key)? as *const CFNumber;
+    unsafe { ptr.as_ref()?.as_f64() }
+}
+
+#[cfg(target_os = "macos")]
+fn dictionary_string(dictionary: &CFDictionary, key: &str) -> Option<String> {
+    let ptr = dictionary_value(dictionary, key)? as *const CFString;
+    unsafe { ptr.as_ref().map(|value| value.to_string()) }
+}
+
+#[cfg(target_os = "macos")]
+fn dictionary_rect(dictionary: &CFDictionary) -> Option<CGRect> {
+    let bounds_ptr = dictionary_value(dictionary, "kCGWindowBounds")? as *const CFDictionary;
+    if bounds_ptr.is_null() {
+        return None;
+    }
+    let mut rect = CGRect::default();
+    let success = unsafe { CGRectMakeWithDictionaryRepresentation(Some(&*bounds_ptr), &mut rect) };
+    if success {
+        Some(rect)
+    } else {
+        None
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn collect_window_snap_targets() -> Result<Vec<WindowSnapTarget>, String> {
+    Ok(Vec::new())
+}
+
 fn temporary_file_path() -> PathBuf {
     let now = current_timestamp_millis();
     std::env::temp_dir().join(format!("chef-region-{now}.png"))
@@ -482,7 +625,8 @@ fn main() {
             cancel_region_capture,
             capture_region,
             finalize_region_capture,
-            set_current_window_always_on_top
+            set_current_window_always_on_top,
+            list_window_snap_targets
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

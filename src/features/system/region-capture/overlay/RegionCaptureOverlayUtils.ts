@@ -22,7 +22,8 @@ export function readMetadataFromQuery(): OverlayMetadata | null {
     logical_origin_x: params.get("logical_origin_x"),
     logical_origin_y: params.get("logical_origin_y"),
     logical_width: params.get("logical_width"),
-    logical_height: params.get("logical_height")
+    logical_height: params.get("logical_height"),
+    primary_height: params.get("primary_height")
   });
 }
 
@@ -52,6 +53,8 @@ export function normalizeMetadata(input: unknown): OverlayMetadata | null {
   const logicalHeight =
     toNumber(candidate.logicalHeight ?? candidate.logical_height) ??
     (height !== null ? height / scaleFactor : null);
+  const primaryHeight =
+    toNumber(candidate.primaryHeight ?? candidate.primary_height) ?? logicalHeight;
 
   if (
     originX === null ||
@@ -79,7 +82,8 @@ export function normalizeMetadata(input: unknown): OverlayMetadata | null {
     logicalOriginX,
     logicalOriginY,
     logicalWidth,
-    logicalHeight
+    logicalHeight,
+    primaryHeight
   };
 }
 

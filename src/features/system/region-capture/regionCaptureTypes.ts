@@ -18,4 +18,14 @@ export type OverlayMetadata = {
   logicalOriginY: number;
   logicalWidth: number;
   logicalHeight: number;
+  primaryHeight: number;
+};
+
+export type WindowSnapTarget = {
+  id: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  name: string;
 };

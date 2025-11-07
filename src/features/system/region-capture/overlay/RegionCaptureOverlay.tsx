@@ -20,7 +20,8 @@ import {
 } from "../editor/constants";
 import type {
   CaptureSuccessPayload,
-  OverlayMetadata
+  OverlayMetadata,
+  WindowSnapTarget
 } from "../regionCaptureTypes";
 import { MIN_SELECTION_SIZE, RESIZE_HANDLES } from "./RegionCaptureOverlayConstants";
 import {
@@ -49,6 +50,11 @@ import type {
 } from "./RegionCaptureOverlayTypes";
 import type { EditorTool, RegionCaptureEditorBridge } from "../editor/types";
 import { EditorToolbarControls } from "../editor/components/EditorToolbarControls";
+
+const SNAP_EDGE_TOLERANCE = 12;
+const SNAP_COVERAGE_THRESHOLD = 0.9;
+const SNAP_POINTER_TOLERANCE_MULTIPLIER = 1.5;
+const SNAP_REFRESH_INTERVAL = 1200;
 
 export function RegionCaptureOverlay() {
   const [metadata, setMetadata] = useState<OverlayMetadata | null>(() =>
@@ -86,6 +92,8 @@ export function RegionCaptureOverlay() {
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
   const selectionRef = useRef<Rect | null>(null);
+  const [snapTargets, setSnapTargets] = useState<WindowSnapTarget[]>([]);
+  const [hoverRect, setHoverRect] = useState<(Rect & { id: number; name: string }) | null>(null);
 
   const isEditing = phase === "editing" && captureResult;
 
@@ -199,9 +207,41 @@ export function RegionCaptureOverlay() {
     };
   }, []);
 
+  useEffect(() => {
+    let disposed = false;
+    const fetchTargets = async () => {
+      try {
+        const result = await invoke<WindowSnapTarget[]>("list_window_snap_targets");
+        if (!disposed) {
+          setSnapTargets(result ?? []);
+        }
+      } catch {
+        if (!disposed) {
+          setSnapTargets([]);
+        }
+      }
+    };
+
+    fetchTargets();
+    const timer = window.setInterval(fetchTargets, SNAP_REFRESH_INTERVAL);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "idle" || selection || draftSelection) {
+      setHoverRect(null);
+    }
+  }, [draftSelection, phase, selection]);
+
   const updateSelection = useCallback((next: Rect | null) => {
     selectionRef.current = next;
     setSelection(next);
+    if (next) {
+      setHoverRect(null);
+    }
   }, []);
 
   const resetSelection = useCallback(() => {
@@ -224,17 +264,123 @@ export function RegionCaptureOverlay() {
     setEditorInitialTextSize(28);
   }, [updateSelection]);
 
+  const localSnapTargets = useMemo<Array<Rect & { id: number; name: string }>>(() => {
+    if (!metadata || !overlaySize || snapTargets.length === 0) {
+      return [];
+    }
+    const overlayScaleX =
+      metadata.logicalWidth > 0 ? overlaySize.width / metadata.logicalWidth : 1;
+    const overlayScaleY =
+      metadata.logicalHeight > 0 ? overlaySize.height / metadata.logicalHeight : 1;
+    const { width: overlayWidth, height: overlayHeight } = overlaySize;
+    return snapTargets
+      .map((target) => {
+        // Window bounds already use a top-left origin, so just offset by the overlay origin.
+        const localTop = target.y - metadata.logicalOriginY;
+        const localLeft = target.x - metadata.logicalOriginX;
+        const projectedWidth = target.width;
+        const projectedHeight = target.height;
+        const left = localLeft * overlayScaleX;
+        const top = localTop * overlayScaleY;
+        const right = left + projectedWidth * overlayScaleX;
+        const bottom = top + projectedHeight * overlayScaleY;
+        const clippedLeft = clampNumber(left, 0, overlayWidth);
+        const clippedTop = clampNumber(top, 0, overlayHeight);
+        const clippedRight = clampNumber(right, clippedLeft, overlayWidth);
+        const clippedBottom = clampNumber(bottom, clippedTop, overlayHeight);
+        const clippedWidth = clippedRight - clippedLeft;
+        const clippedHeight = clippedBottom - clippedTop;
+        if (clippedWidth < MIN_SELECTION_SIZE || clippedHeight < MIN_SELECTION_SIZE) {
+          return null;
+        }
+        return {
+          id: target.id,
+          name: target.name,
+          x: clippedLeft,
+          y: clippedTop,
+          width: clippedWidth,
+          height: clippedHeight
+        };
+      })
+      .filter((rect): rect is Rect & { id: number; name: string } => Boolean(rect));
+  }, [metadata, overlaySize, snapTargets]);
+
+  const applyWindowSnap = useCallback(
+    (rect: Rect, point: Point | null) => {
+      if (!localSnapTargets.length) {
+        return rect;
+      }
+      let snapped: Rect | null = null;
+      let bestScore = Number.POSITIVE_INFINITY;
+      for (const target of localSnapTargets) {
+        if (target.width <= 0 || target.height <= 0) {
+          continue;
+        }
+        const pointerInside = point ? isPointWithinRect(point, target) : false;
+        const intersection = rectIntersectionArea(rect, target);
+        const coverage =
+          intersection > 0 ? intersection / (target.width * target.height) : 0;
+        if (!pointerInside && coverage < SNAP_COVERAGE_THRESHOLD) {
+          continue;
+        }
+        const leftDiff = Math.abs(rect.x - target.x);
+        const topDiff = Math.abs(rect.y - target.y);
+        const rightDiff = Math.abs(
+          rect.x + rect.width - (target.x + target.width)
+        );
+        const bottomDiff = Math.abs(
+          rect.y + rect.height - (target.y + target.height)
+        );
+        const edgeScore = Math.max(leftDiff, topDiff, rightDiff, bottomDiff);
+        const tolerance = pointerInside
+          ? SNAP_EDGE_TOLERANCE * SNAP_POINTER_TOLERANCE_MULTIPLIER
+          : SNAP_EDGE_TOLERANCE;
+        if (edgeScore > tolerance) {
+          continue;
+        }
+        if (edgeScore < bestScore) {
+          bestScore = edgeScore;
+          snapped = target;
+        }
+      }
+      if (snapped) {
+        return {
+          x: snapped.x,
+          y: snapped.y,
+          width: snapped.width,
+          height: snapped.height
+        };
+      }
+      return rect;
+    },
+    [localSnapTargets]
+  );
+
   const handleOverlayPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (event.button !== 0 || isEditing || phase === "capturing" || phase === "finalizing") {
         return;
       }
-      if (selection && isPointWithinRect(toLocalPoint(event, overlayRef.current), selection)) {
+      const point = toLocalPoint(event, overlayRef.current);
+      if (
+        hoverRect &&
+        phase === "idle" &&
+        !selection &&
+        !draftSelection &&
+        isPointWithinRect(point, hoverRect)
+      ) {
+        const { id: _ignored, name: _ignoredName, ...rect } = hoverRect;
+        updateSelection(rect);
+        setDraftSelection(null);
+        setHoverRect(null);
+        setPhase("selected");
+        return;
+      }
+      if (selection && isPointWithinRect(point, selection)) {
         return;
       }
       setPhase("drawing");
       setError(null);
-      const point = toLocalPoint(event, overlayRef.current);
       activePointerIdRef.current = event.pointerId;
       overlayRef.current?.setPointerCapture(event.pointerId);
       setDragStart(point);
@@ -246,7 +392,7 @@ export function RegionCaptureOverlay() {
       });
       updateSelection(null);
     },
-    [isEditing, phase, selection, updateSelection]
+    [draftSelection, hoverRect, isEditing, phase, selection, updateSelection]
   );
 
   const handleOverlayPointerMove = useCallback(
@@ -258,7 +404,8 @@ export function RegionCaptureOverlay() {
       const point = toLocalPoint(event, overlayRef.current);
 
       if (phase === "drawing" && dragStart && activePointerIdRef.current === event.pointerId) {
-        setDraftSelection(computeRect(dragStart, point));
+        const draft = computeRect(dragStart, point);
+        setDraftSelection(applyWindowSnap(draft, point));
         return;
       }
 
@@ -268,15 +415,49 @@ export function RegionCaptureOverlay() {
           return;
         }
         if (interaction.mode === "move") {
-          const next = moveRect(interaction.initial, point, interaction.offset, bounds);
+          let next = moveRect(interaction.initial, point, interaction.offset, bounds);
+          next = applyWindowSnap(next, point);
           updateSelection(next);
         } else if (interaction.mode === "resize") {
-          const next = resizeRect(interaction.initial, point, interaction.handle, bounds);
+          let next = resizeRect(interaction.initial, point, interaction.handle, bounds);
+          next = applyWindowSnap(next, point);
           updateSelection(next);
         }
+        return;
+      }
+
+      if (
+        phase === "idle" &&
+        !dragStart &&
+        !selection &&
+        !draftSelection &&
+        !interaction
+      ) {
+        const hovered = localSnapTargets.find((target) => isPointWithinRect(point, target)) ?? null;
+        setHoverRect((current) => {
+          if (!hovered && !current) {
+            return current;
+          }
+          if (hovered && current && hovered.id === current.id) {
+            return current;
+          }
+          return hovered;
+        });
+      } else if (hoverRect) {
+        setHoverRect(null);
       }
     },
-    [dragStart, interaction, phase, selection, updateSelection]
+    [
+      applyWindowSnap,
+      draftSelection,
+      dragStart,
+      hoverRect,
+      interaction,
+      localSnapTargets,
+      phase,
+      selection,
+      updateSelection
+    ]
   );
 
   type CaptureIntent =
@@ -729,10 +910,10 @@ export function RegionCaptureOverlay() {
     });
   }, [capturedRect, overlaySize, phase, pendingTool, selection]);
 
-  const activeRect = getActiveRect(selection, draftSelection);
+  const activeRect = getActiveRect(selection ?? hoverRect ?? null, draftSelection);
 
   const overlayMask = useMemo(() => {
-    const baseClass = "pointer-events-none absolute z-10 bg-[rgba(0,0,0,0.35)]";
+    const baseClass = "pointer-events-none absolute z-10 bg-[rgba(0,0,0,0.5)]";
     if (!overlaySize || !activeRect) {
       return <div className={`${baseClass} inset-0`} />;
     }
@@ -791,6 +972,23 @@ export function RegionCaptureOverlay() {
     return segments;
   }, [activeRect, overlaySize]);
 
+  const hoverLabel =
+    hoverRect &&
+    !selection &&
+    !draftSelection &&
+    phase === "idle" &&
+    overlaySize ? (
+      <div
+        className="pointer-events-none absolute z-30 max-w-[60vw] truncate rounded-full bg-[rgba(18,27,43,0.9)] px-3 py-1 text-xs text-white shadow-md"
+        style={{
+          left: `${clampNumber(hoverRect.x + 12, 8, overlaySize.width - 8)}px`,
+          top: `${clampNumber(hoverRect.y - 28, 8, overlaySize.height - 24)}px`
+        }}
+      >
+        {hoverRect.name}
+      </div>
+    ) : null;
+
   const selectionStyle = activeRect
     ? {
         left: `${activeRect.x}px`,
@@ -834,6 +1032,7 @@ export function RegionCaptureOverlay() {
       onPointerCancel={handleOverlayPointerUp}
     >
       {overlayMask}
+      {hoverLabel}
 
       {!isEditing && (
         <div className="pointer-events-auto absolute right-6 top-6 flex gap-2 text-xs">
@@ -992,4 +1191,14 @@ export function RegionCaptureOverlay() {
       )}
     </div>
   );
+}
+
+function rectIntersectionArea(a: Rect, b: Rect) {
+  const left = Math.max(a.x, b.x);
+  const top = Math.max(a.y, b.y);
+  const right = Math.min(a.x + a.width, b.x + b.width);
+  const bottom = Math.min(a.y + a.height, b.y + b.height);
+  const width = Math.max(0, right - left);
+  const height = Math.max(0, bottom - top);
+  return width * height;
 }
