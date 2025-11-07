@@ -93,7 +93,9 @@
 
   body.region-capture-overlay {
     background: transparent;
+    background-color: transparent;
     cursor: crosshair;
+    transition: none !important;
   }
 }
 

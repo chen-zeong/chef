@@ -8,6 +8,10 @@ const params = new URLSearchParams(window.location.search);
 const windowType = params.get("window");
 const isOverlayWindow = windowType === "overlay";
 
+if (isOverlayWindow && typeof document !== "undefined") {
+  document.body.classList.add("region-capture-overlay");
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     {isOverlayWindow ? <RegionCaptureOverlay /> : <App />}

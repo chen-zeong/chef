@@ -83,7 +83,7 @@ export function ScreenshotTool() {
         disabled={isLaunching}
         onClick={handleStartCapture}
       >
-        {isLaunching ? "正在创建遮罩..." : "启动框选遮罩"}
+        启动框选遮罩
       </motion.button>
 
       <div className="rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-4 text-sm text-[var(--text-secondary)]">

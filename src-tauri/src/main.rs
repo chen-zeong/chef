@@ -23,6 +23,11 @@ use tauri::{
     WebviewWindowBuilder,
 };
 
+#[cfg(target_os = "macos")]
+const ENABLE_COLLECTION_BEHAVIOR: bool = false;
+#[cfg(target_os = "macos")]
+const ENABLE_SHARING_TYPE: bool = false;
+
 #[derive(Debug, Clone, Deserialize)]
 struct CaptureRegion {
     x: u32,
@@ -373,14 +378,17 @@ fn apply_window_level(window: &WebviewWindow, allow_input_panel: bool) -> Result
                 (NSStatusWindowLevel + 1) as isize
             };
             reference.setLevel(target_level);
-            reference.setCollectionBehavior(
-                NSWindowCollectionBehavior::CanJoinAllSpaces
-                    | NSWindowCollectionBehavior::FullScreenAuxiliary
-                    | NSWindowCollectionBehavior::Stationary
-                    | NSWindowCollectionBehavior::IgnoresCycle,
-            );
-            // Keep overlay visible to the user but exclude it from captured frames.
-            reference.setSharingType(NSWindowSharingType::None);
+            if ENABLE_COLLECTION_BEHAVIOR {
+                reference.setCollectionBehavior(
+                    NSWindowCollectionBehavior::CanJoinAllSpaces
+                        | NSWindowCollectionBehavior::FullScreenAuxiliary
+                        | NSWindowCollectionBehavior::Stationary
+                        | NSWindowCollectionBehavior::IgnoresCycle,
+                );
+            }
+            if ENABLE_SHARING_TYPE {
+                reference.setSharingType(NSWindowSharingType::None);
+            }
             if !allow_input_panel {
                 reference.setOpaque(false);
                 reference.setHasShadow(false);

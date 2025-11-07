@@ -95,7 +95,7 @@ export function RegionCaptureOverlay() {
     }).catch(() => undefined);
   }, [isEditing]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const { classList } = document.body;
     classList.add("region-capture-overlay");
 
@@ -924,12 +924,6 @@ export function RegionCaptureOverlay() {
             <p className="mt-1 text-[11px] text-white/75">选区完成后可在下方面板选择工具与样式，点击任意工具会自动进入编辑。</p>
           </div>
         )
-      )}
-
-      {phase === "capturing" && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-medium text-white">
-          正在生成截图…
-        </div>
       )}
 
       {phase === "finalizing" && (
