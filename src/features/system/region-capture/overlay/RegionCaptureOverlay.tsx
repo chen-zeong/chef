@@ -1175,12 +1175,16 @@ export function RegionCaptureOverlay() {
     (phase === "finalizing" && finalizingMode === "ocr") || phase === "ocr-result";
   const isOcrLoading = phase === "finalizing" && finalizingMode === "ocr";
   const isNightMode = isDarkTheme;
+  const ocrPanelRef = useRef<HTMLDivElement | null>(null);
+  const [ocrPanelHeight, setOcrPanelHeight] = useState<number | null>(null);
+  const baseOcrPanelHeight = isOcrLoading ? 270 : 390;
+  const resolvedOcrPanelHeight = ocrPanelHeight ?? baseOcrPanelHeight;
   const normalizedOcrSearch = ocrSearchQuery.trim();
   const normalizedOcrSearchLower = normalizedOcrSearch.toLowerCase();
   const ocrPanelClasses = useMemo(
     () => ({
       panel: clsx(
-        "w-[min(360px,calc(100vw-48px))] rounded-[22px] border backdrop-blur-2xl transition-[background-color,border-color,box-shadow] duration-300",
+        "w-[min(360px,calc(100vw-48px))] cursor-auto rounded-[22px] border backdrop-blur-2xl transition-[background-color,border-color,box-shadow] duration-300",
         isDarkTheme
           ? "border-white/12 bg-[rgba(8,10,24,0.92)] text-white shadow-[0_26px_70px_rgba(0,0,0,0.6)]"
           : "border-[rgba(15,23,42,0.08)] bg-[rgba(255,255,255,0.98)] text-[rgba(15,23,42,0.95)] shadow-[0_22px_48px_rgba(15,23,42,0.18)]"
@@ -1236,51 +1240,69 @@ export function RegionCaptureOverlay() {
 
     const anchorRect = capturedRect ?? activeRect;
     const margin = 18;
-    const estimatedHeight = isOcrLoading ? 180 : 260;
+    const panelHeight = resolvedOcrPanelHeight;
     const availableWidth = Math.max(overlaySize.width - margin * 2, 180);
     const widthMin = Math.min(260, availableWidth);
     const widthMax = Math.min(380, availableWidth);
     const desiredWidth = overlaySize.width * 0.28;
     const width = clampNumber(desiredWidth, widthMin, widthMax);
+    const overlayWidth = overlaySize.width;
+    const overlayHeight = overlaySize.height;
 
     if (!anchorRect) {
       return {
-        left: overlaySize.width / 2,
-        top: overlaySize.height - margin,
-        translateX: "-50%",
-        translateY: "-100%",
+        left: clampNumber(overlayWidth / 2 - width / 2, margin, overlayWidth - width - margin),
+        top: clampNumber(overlayHeight - panelHeight - margin, margin, overlayHeight - panelHeight - margin),
         width
       };
     }
 
     const centerY = anchorRect.y + anchorRect.height / 2;
-    const minCenterY = estimatedHeight / 2 + margin;
-    const maxCenterY = overlaySize.height - estimatedHeight / 2 - margin;
-    const clampedCenterY = clampNumber(centerY, minCenterY, maxCenterY);
-    let left = anchorRect.x + anchorRect.width + margin;
-    let translateX: string = "0";
+    const maxTop = overlayHeight - panelHeight - margin;
+    const minTop = margin;
+    const top = clampNumber(centerY - panelHeight / 2, minTop, Math.max(minTop, maxTop));
+    const anchorRight = anchorRect.x + anchorRect.width;
+    let left = anchorRight + margin;
 
-    if (left + width > overlaySize.width - margin) {
-      left = anchorRect.x - margin;
-      translateX = "-100%";
+    if (left + width > overlayWidth - margin) {
+      left = anchorRect.x - width - margin;
 
-      if (left - width < margin) {
+      if (left < margin) {
         const anchorCenterX = anchorRect.x + anchorRect.width / 2;
-        const minCenterX = width / 2 + margin;
-        const maxCenterX = overlaySize.width - width / 2 - margin;
-        left = clampNumber(anchorCenterX, minCenterX, maxCenterX);
-        translateX = "-50%";
+        left = clampNumber(anchorCenterX - width / 2, margin, overlayWidth - width - margin);
       }
     }
 
     return {
       left,
-      top: clampedCenterY,
-      translateX,
-      translateY: "-50%",
+      top,
       width
     };
-  }, [activeRect, capturedRect, isOcrLoading, overlaySize, showOcrPanel]);
+  }, [activeRect, capturedRect, overlaySize, resolvedOcrPanelHeight, showOcrPanel]);
+
+  useLayoutEffect(() => {
+    if (!showOcrPanel) {
+      setOcrPanelHeight(null);
+      return;
+    }
+    const element = ocrPanelRef.current;
+    if (!element) {
+      return;
+    }
+    const updateHeight = () => setOcrPanelHeight(element.getBoundingClientRect().height);
+    updateHeight();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver((entries) => {
+      if (!entries.length) {
+        return;
+      }
+      setOcrPanelHeight(entries[0].contentRect.height);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [showOcrPanel]);
   const ocrLines = useMemo(() => {
     if (!ocrResultText) {
       return [];
@@ -1345,6 +1367,25 @@ export function RegionCaptureOverlay() {
     (phase === "selected" || phase === "editing" || phase === "capturing");
   const isToolbarLocked = phase === "capturing" || phase === "finalizing";
   const hasOcrResultText = Boolean(ocrResultText && ocrResultText.trim().length > 0);
+  const ocrPanelMinHeight = baseOcrPanelHeight;
+  const fallbackOcrPanelPlacement = useMemo(() => {
+    if (!overlaySize) {
+      return null;
+    }
+    const margin = 18;
+    const width = Math.min(Math.max(overlaySize.width - margin * 2, 220), 360);
+    const left = clampNumber(
+      overlaySize.width / 2 - width / 2,
+      margin,
+      Math.max(margin, overlaySize.width - width - margin)
+    );
+    const top = clampNumber(
+      overlaySize.height - ocrPanelMinHeight - margin,
+      margin,
+      Math.max(margin, overlaySize.height - ocrPanelMinHeight - margin)
+    );
+    return { left, top, width };
+  }, [ocrPanelMinHeight, overlaySize]);
   const ocrCardClassName = clsx(
     "relative",
     ocrPanelClasses.panel,
@@ -1466,6 +1507,7 @@ export function RegionCaptureOverlay() {
       <AnimatePresence initial={false}>
         {showOcrPanel && (
           <motion.div
+            ref={ocrPanelRef}
             className="pointer-events-auto absolute z-40"
             style={
               ocrPanelPlacement
@@ -1473,14 +1515,14 @@ export function RegionCaptureOverlay() {
                     left: `${ocrPanelPlacement.left}px`,
                     top: `${ocrPanelPlacement.top}px`,
                     width: `${ocrPanelPlacement.width}px`,
-                    transform: `translate(${ocrPanelPlacement.translateX}, ${ocrPanelPlacement.translateY})`
+                    minHeight: `${ocrPanelMinHeight}px`
                   }
-                : overlaySize
+                : overlaySize && fallbackOcrPanelPlacement
                   ? {
-                      left: `${overlaySize.width / 2}px`,
-                      top: `${overlaySize.height - 24}px`,
-                      transform: "translate(-50%, -100%)",
-                      width: `${Math.min(Math.max(overlaySize.width - 36, 220), 360)}px`
+                      left: `${fallbackOcrPanelPlacement.left}px`,
+                      top: `${fallbackOcrPanelPlacement.top}px`,
+                      width: `${fallbackOcrPanelPlacement.width}px`,
+                      minHeight: `${ocrPanelMinHeight}px`
                     }
                   : undefined
             }
@@ -1550,44 +1592,22 @@ export function RegionCaptureOverlay() {
                             )}
                           />
                         </div>
-                        <div
-                          className={clsx(
-                            "flex flex-col text-sm",
-                            isNightMode ? "text-white/80" : undefined
-                          )}
-                        >
-                          <p className={clsx("font-semibold tracking-wide", ocrPanelClasses.heading)}>正在解析文本</p>
-                          <p className={clsx("text-xs", ocrPanelClasses.subheading)}>文字检测 · 语言建模 · 语义优化</p>
+                      <div
+                        className={clsx(
+                          "flex flex-col text-sm",
+                          isNightMode ? "text-white/80" : undefined
+                        )}
+                      >
+                          <p className={clsx("font-semibold tracking-wide", ocrPanelClasses.heading)}>RapidOCR 正在解析文本</p>
+                          <p className={clsx("text-xs", ocrPanelClasses.subheading)}>基于开源模型的本地识别，请稍候…</p>
                         </div>
-                      </div>
-                    </div>
-                    <div
-                      className={clsx(
-                        "rounded-2xl border px-4 py-4",
-                        isNightMode
-                          ? "ocr-night-result"
-                          : isDarkTheme
-                            ? "border-white/8 bg-white/[0.04]"
-                            : "border-[rgba(15,23,42,0.06)] bg-white"
-                      )}
-                    >
-                      {isNightMode && <div aria-hidden className="ocr-night-result-glow" />}
-                      <div className="relative z-[1] space-y-3">
-                        {[0, 1, 2, 3].map((index) => (
-                          <div
-                            key={`ocr-loading-stripe-${index}`}
-                            className="ocr-loading-stripe"
-                            style={{ animationDelay: `${index * 140}ms` }}
-                          />
-                        ))}
                       </div>
                     </div>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className={clsx("text-base font-semibold", ocrPanelClasses.heading)}>OCR 识别结果</p>
-                      <label className={clsx("flex-1 min-w-[160px]", ocrPanelClasses.searchFloating)}>
+                    <div className="flex flex-nowrap items-center gap-2">
+                      <label className={clsx("flex-1 min-w-0", ocrPanelClasses.searchFloating)}>
                         <Search
                           size={14}
                           strokeWidth={1.8}
@@ -1620,7 +1640,7 @@ export function RegionCaptureOverlay() {
                           </button>
                         )}
                       </label>
-                      <div className="flex items-center gap-1">
+                      <div className="flex flex-shrink-0 items-center gap-1 whitespace-nowrap">
                         <button
                           type="button"
                           className={ocrPanelClasses.actionCopy}
@@ -1691,7 +1711,7 @@ export function RegionCaptureOverlay() {
             <button
               type="button"
               className={clsx(
-                "absolute -right-3 -top-3 flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold transition",
+                "absolute -right-3 -top-3 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border text-sm font-semibold transition",
                 isDarkTheme
                   ? "border-white/20 bg-[rgba(15,23,42,0.9)] text-white/80 hover:bg-white/10"
                   : "border-[rgba(15,23,42,0.12)] bg-white text-[rgba(17,27,45,0.75)] shadow-[0_12px_26px_rgba(15,23,42,0.12)] hover:bg-[rgba(248,250,255,0.95)]"
@@ -1699,7 +1719,9 @@ export function RegionCaptureOverlay() {
               onClick={handleDismissOcrPanel}
               aria-label="关闭 OCR 面板"
             >
-              ×
+              <span aria-hidden className="flex h-full w-full items-center justify-center text-xl leading-none">
+                ×
+              </span>
             </button>
           </motion.div>
           </motion.div>
