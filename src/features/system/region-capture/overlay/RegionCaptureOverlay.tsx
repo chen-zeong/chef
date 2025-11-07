@@ -112,8 +112,6 @@ export function RegionCaptureOverlay() {
   const [ocrCopyLabel, setOcrCopyLabel] = useState("复制全部");
   const [ocrSearchQuery, setOcrSearchQuery] = useState("");
   const ocrCopyTimeoutRef = useRef<number | null>(null);
-  const lineCopyTimeoutRef = useRef<number | null>(null);
-  const [copiedLine, setCopiedLine] = useState<string | null>(null);
   const ocrSearchInputRef = useRef<HTMLInputElement | null>(null);
   const [isDarkTheme, setIsDarkTheme] = useState(
     () => (typeof document !== "undefined" && document.body.classList.contains("theme-dark")) ?? false
@@ -977,25 +975,9 @@ export function RegionCaptureOverlay() {
     }, 2000);
   }, [ocrResultText]);
 
-  const handleCopyLine = useCallback((line: string) => {
-    if (!line.trim()) {
-      return;
-    }
-    void navigator.clipboard.writeText(line).catch(() => undefined);
-    setCopiedLine(line);
-    if (lineCopyTimeoutRef.current) {
-      window.clearTimeout(lineCopyTimeoutRef.current);
-    }
-    lineCopyTimeoutRef.current = window.setTimeout(() => {
-      setCopiedLine(null);
-      lineCopyTimeoutRef.current = null;
-    }, 1500);
-  }, []);
-
   const handleDismissOcrPanel = useCallback(() => {
     resetOcrResult();
     setOcrCopyLabel("复制全部");
-    setCopiedLine(null);
     setFinalizingMode("save");
     setCaptureResult(null);
     setCapturedRect(null);
@@ -1004,14 +986,6 @@ export function RegionCaptureOverlay() {
     const hasSelection = Boolean(selectionRef.current);
     setPhase(hasSelection ? "selected" : "idle");
   }, [resetOcrResult]);
-
-  useEffect(() => {
-    return () => {
-      if (lineCopyTimeoutRef.current) {
-        window.clearTimeout(lineCopyTimeoutRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (phase === "editing" && editorBridge) {
@@ -1240,29 +1214,18 @@ export function RegionCaptureOverlay() {
           : "border-[rgba(59,130,246,0.3)] bg-[rgba(59,130,246,0.12)] text-[rgba(30,64,175,0.95)] hover:bg-[rgba(59,130,246,0.2)] focus-visible:ring-[rgba(59,130,246,0.35)]"
       ),
       surface: clsx(
-        "px-1 py-1 text-sm leading-6",
-        isDarkTheme ? "text-white/90" : "text-[rgba(17,27,45,0.85)]"
+        "rounded-2xl border px-3 py-2 text-[13px] leading-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+        isDarkTheme
+          ? "border-white/10 bg-[rgba(12,16,30,0.92)] text-white/90"
+          : "border-[rgba(15,23,42,0.08)] bg-[rgba(248,250,255,0.96)] text-[rgba(17,27,45,0.85)]"
       ),
       listItem: clsx(
-        "flex items-start justify-between gap-2 py-1 text-[12px]",
-        isDarkTheme ? "text-white/90" : "text-[rgba(15,23,42,0.8)]"
-      ),
-      lineCopy: clsx(
-        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0",
+        "flex items-start gap-2 rounded-lg px-2 py-1 text-[12px] leading-5 transition",
         isDarkTheme
-          ? "border-white/18 text-white/70 hover:border-white/35 hover:bg-white/10 focus-visible:ring-white/25"
-          : "border-[rgba(37,99,235,0.25)] text-[rgba(37,99,235,0.85)] hover:border-[rgba(37,99,235,0.45)] hover:bg-[rgba(59,130,246,0.12)] focus-visible:ring-[rgba(59,130,246,0.35)]"
+          ? "text-white/90 hover:bg-white/5"
+          : "text-[rgba(15,23,42,0.78)] hover:bg-[rgba(15,23,42,0.04)]"
       ),
-      lineCopyActive: isDarkTheme
-        ? "border-white/35 bg-white/10 text-white"
-        : "border-[rgba(37,99,235,0.5)] bg-[rgba(59,130,246,0.16)] text-[rgba(17,27,45,0.8)]",
-      noResult: isDarkTheme ? "text-white/60" : "text-[rgba(17,27,45,0.6)]",
-      closeButton: clsx(
-        "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0",
-        isDarkTheme
-          ? "border-white/20 text-white/80 hover:bg-white/10 focus-visible:ring-white/20"
-         : "border-[rgba(17,27,45,0.14)] text-[rgba(17,27,45,0.7)] hover:bg-[rgba(17,27,45,0.05)] focus-visible:ring-[rgba(59,130,246,0.25)]"
-      )
+      noResult: isDarkTheme ? "text-white/60" : "text-[rgba(17,27,45,0.6)]"
     }),
     [isDarkTheme]
   );
@@ -1383,11 +1346,10 @@ export function RegionCaptureOverlay() {
   const isToolbarLocked = phase === "capturing" || phase === "finalizing";
   const hasOcrResultText = Boolean(ocrResultText && ocrResultText.trim().length > 0);
   const ocrCardClassName = clsx(
-    "relative overflow-hidden",
+    "relative",
     ocrPanelClasses.panel,
     !isNightMode && "group",
-    isNightMode && "ocr-night-card",
-    isOcrLoading && "ocr-loading-scan"
+    isNightMode && "ocr-night-card"
   );
 
   return (
@@ -1529,24 +1491,33 @@ export function RegionCaptureOverlay() {
           >
             <motion.div
               className={ocrCardClassName}
+              onPointerDown={(event) => event.stopPropagation()}
+              onPointerMove={(event) => event.stopPropagation()}
+              onPointerUp={(event) => event.stopPropagation()}
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 14 }}
               transition={{ duration: 0.24, ease: "easeOut" }}
             >
-              {isNightMode ? (
-                <div aria-hidden className="ocr-night-glow" />
-              ) : (
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition duration-300 group-hover:opacity-70"
-                  style={{
-                    background: "radial-gradient(circle at 80% 0%, rgba(79,70,229,0.18), transparent 55%)"
-                  }}
-                />
-              )}
-              <div className="relative z-[1] flex flex-col gap-4 px-5 py-4">
-                {isOcrLoading ? (
+              <div
+                className={clsx(
+                  "relative overflow-hidden rounded-[inherit]",
+                  isOcrLoading && "ocr-loading-scan"
+                )}
+              >
+                {isNightMode ? (
+                  <div aria-hidden className="ocr-night-glow" />
+                ) : (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition duration-300 group-hover:opacity-70"
+                    style={{
+                      background: "radial-gradient(circle at 80% 0%, rgba(79,70,229,0.18), transparent 55%)"
+                    }}
+                  />
+                )}
+                <div className="relative z-[1] flex flex-col gap-4 px-5 py-4">
+                  {isOcrLoading ? (
                   <div className="flex flex-col gap-4">
                     <div
                       className={clsx(
@@ -1589,9 +1560,6 @@ export function RegionCaptureOverlay() {
                           <p className={clsx("text-xs", ocrPanelClasses.subheading)}>文字检测 · 语言建模 · 语义优化</p>
                         </div>
                       </div>
-                      <button type="button" className={ocrPanelClasses.closeButton} onClick={handleDismissOcrPanel}>
-                        关闭
-                      </button>
                     </div>
                     <div
                       className={clsx(
@@ -1666,9 +1634,6 @@ export function RegionCaptureOverlay() {
                           )}
                           {ocrCopyLabel}
                         </button>
-                        <button type="button" className={ocrPanelClasses.closeButton} onClick={handleDismissOcrPanel}>
-                          关闭
-                        </button>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-[11px]">
@@ -1690,39 +1655,20 @@ export function RegionCaptureOverlay() {
                     </div>
                     <div
                       className={clsx(
-                        "ocr-scroll-area relative max-h-[220px] overflow-y-auto text-xs leading-6",
+                        "ocr-scroll-area relative max-h-[220px] overflow-y-auto select-text cursor-text",
                         ocrPanelClasses.surface
                       )}
                     >
                       <div>
                         {hasOcrResultText ? (
                           hasFilteredResults ? (
-                            <div className="space-y-2">
+                            <div className="space-y-1.5">
                               {filteredOcrLines.map((line, lineIndex) => (
-                                <div key={`ocr-line-${lineIndex}-${line}`} className={ocrPanelClasses.listItem}>
-                                  <div className="min-w-0 flex-1 break-words">
-                                    {renderHighlightedLine(line, lineIndex)}
-                                  </div>
-                                  <button
-                                    type="button"
-                                    className={clsx(
-                                      ocrPanelClasses.lineCopy,
-                                      copiedLine === line && ocrPanelClasses.lineCopyActive
-                                    )}
-                                    onClick={() => handleCopyLine(line)}
-                                  >
-                                    {copiedLine === line ? (
-                                      <>
-                                        <Check size={12} />
-                                        已复制
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Copy size={12} />
-                                        复制
-                                      </>
-                                    )}
-                                  </button>
+                                <div
+                                  key={`ocr-line-${lineIndex}-${line}`}
+                                  className={clsx(ocrPanelClasses.listItem, "min-w-0 break-words")}
+                                >
+                                  {renderHighlightedLine(line, lineIndex)}
                                 </div>
                               ))}
                             </div>
@@ -1741,7 +1687,21 @@ export function RegionCaptureOverlay() {
                   </div>
                 )}
               </div>
-            </motion.div>
+            </div>
+            <button
+              type="button"
+              className={clsx(
+                "absolute -right-3 -top-3 flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold transition",
+                isDarkTheme
+                  ? "border-white/20 bg-[rgba(15,23,42,0.9)] text-white/80 hover:bg-white/10"
+                  : "border-[rgba(15,23,42,0.12)] bg-white text-[rgba(17,27,45,0.75)] shadow-[0_12px_26px_rgba(15,23,42,0.12)] hover:bg-[rgba(248,250,255,0.95)]"
+              )}
+              onClick={handleDismissOcrPanel}
+              aria-label="关闭 OCR 面板"
+            >
+              ×
+            </button>
+          </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
