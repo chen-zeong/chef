@@ -71,25 +71,122 @@
 
   .ocr-scroll-area {
     scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.5) transparent;
+    scrollbar-color: rgba(120, 128, 145, 0.7) transparent;
   }
 
   .ocr-scroll-area::-webkit-scrollbar {
-    width: 14px;
+    width: 10px;
   }
 
   .ocr-scroll-area::-webkit-scrollbar-track {
-    background: rgba(148, 163, 184, 0.15);
-    border-radius: 999px;
+    background: transparent;
   }
 
   .ocr-scroll-area::-webkit-scrollbar-thumb {
     border-radius: 999px;
-    background: linear-gradient(180deg, rgba(148, 163, 184, 0.9), rgba(99, 102, 241, 0.9));
-    border: 3px solid transparent;
+    background-color: rgba(120, 128, 145, 0.75);
+    border: 2px solid transparent;
     background-clip: padding-box;
   }
 
+}
+
+@keyframes ocr-night-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ocr-night-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes ocr-night-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@layer components {
+  .ocr-night-card {
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, #0f1425 80%, rgba(255, 255, 255, 0.02));
+    box-shadow: 0 25px 80px rgba(4, 6, 17, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(18px);
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .ocr-night-glow {
+    position: absolute;
+    inset: -35%;
+    z-index: 0;
+    pointer-events: none;
+    filter: blur(120px);
+    opacity: 0.7;
+    background: conic-gradient(from 0deg, rgba(102, 240, 255, 0.3), transparent 45%, rgba(92, 124, 250, 0.25));
+    animation: ocr-night-rotate 30s linear infinite;
+  }
+
+  .ocr-night-status {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(145deg, rgba(15, 20, 37, 0.92), rgba(20, 27, 48, 0.92));
+    position: relative;
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .ocr-night-status::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent, rgba(102, 240, 255, 0.15), transparent);
+    animation: ocr-night-shimmer 2.4s linear infinite;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  .ocr-night-loader {
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .ocr-night-spinner {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.12);
+    border-top-color: #66f0ff;
+    animation: ocr-night-spin 1.1s linear infinite;
+  }
+
+  .ocr-night-result {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(5, 8, 21, 0.65);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+    position: relative;
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .ocr-night-result-glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 65% 20%, rgba(92, 124, 250, 0.3), transparent 45%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .ocr-night-result:hover .ocr-night-result-glow {
+    opacity: 0.45;
+  }
 }
 
 @layer base {
