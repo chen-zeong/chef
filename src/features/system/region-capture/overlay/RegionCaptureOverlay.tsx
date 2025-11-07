@@ -55,6 +55,7 @@ const SNAP_EDGE_TOLERANCE = 12;
 const SNAP_COVERAGE_THRESHOLD = 0.9;
 const SNAP_POINTER_TOLERANCE_MULTIPLIER = 1.5;
 const SNAP_REFRESH_INTERVAL = 1200;
+const HOVER_SNAP_CLICK_TOLERANCE = 4;
 
 export function RegionCaptureOverlay() {
   const [metadata, setMetadata] = useState<OverlayMetadata | null>(() =>
@@ -92,6 +93,12 @@ export function RegionCaptureOverlay() {
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
   const selectionRef = useRef<Rect | null>(null);
+  const hoverSnapCandidateRef = useRef<{
+    rect: Rect;
+    pointerId: number;
+    startPoint: Point;
+    hasMoved: boolean;
+  } | null>(null);
   const [snapTargets, setSnapTargets] = useState<WindowSnapTarget[]>([]);
   const [hoverRect, setHoverRect] = useState<(Rect & { id: number; name: string }) | null>(null);
 
@@ -362,19 +369,34 @@ export function RegionCaptureOverlay() {
         return;
       }
       const point = toLocalPoint(event, overlayRef.current);
-      if (
+      let hoverSnapPayload: {
+        rect: Rect;
+        pointerId: number;
+        startPoint: Point;
+        hasMoved: boolean;
+      } | null = null;
+      const canHoverSnapCommit =
         hoverRect &&
         phase === "idle" &&
         !selection &&
         !draftSelection &&
-        isPointWithinRect(point, hoverRect)
-      ) {
-        const { id: _ignored, name: _ignoredName, ...rect } = hoverRect;
-        updateSelection(rect);
-        setDraftSelection(null);
+        isPointWithinRect(point, hoverRect);
+      if (canHoverSnapCommit && hoverRect) {
+        const { id: _ignored, name: _ignoredName, ...rest } = hoverRect;
+        const rectWithoutMeta: Rect = rest;
+        hoverSnapPayload = {
+          rect: rectWithoutMeta,
+          pointerId: event.pointerId,
+          startPoint: point,
+          hasMoved: false
+        };
+      }
+
+      if (hoverSnapPayload) {
+        hoverSnapCandidateRef.current = hoverSnapPayload;
         setHoverRect(null);
-        setPhase("selected");
-        return;
+      } else {
+        hoverSnapCandidateRef.current = null;
       }
       if (selection && isPointWithinRect(point, selection)) {
         return;
@@ -406,6 +428,19 @@ export function RegionCaptureOverlay() {
       if (phase === "drawing" && dragStart && activePointerIdRef.current === event.pointerId) {
         const draft = computeRect(dragStart, point);
         setDraftSelection(applyWindowSnap(draft, point));
+        const candidate = hoverSnapCandidateRef.current;
+        if (
+          candidate &&
+          candidate.pointerId === event.pointerId &&
+          !candidate.hasMoved &&
+          (Math.abs(point.x - candidate.startPoint.x) > HOVER_SNAP_CLICK_TOLERANCE ||
+            Math.abs(point.y - candidate.startPoint.y) > HOVER_SNAP_CLICK_TOLERANCE)
+        ) {
+          hoverSnapCandidateRef.current = {
+            ...candidate,
+            hasMoved: true
+          };
+        }
         return;
       }
 
@@ -576,6 +611,21 @@ export function RegionCaptureOverlay() {
 
       if (phase === "drawing" && dragStart && draftSelection && activePointerIdRef.current === event.pointerId) {
         activePointerIdRef.current = null;
+        const candidate = hoverSnapCandidateRef.current;
+        if (
+          candidate &&
+          candidate.pointerId === event.pointerId &&
+          !candidate.hasMoved
+        ) {
+          hoverSnapCandidateRef.current = null;
+          setDraftSelection(null);
+          setDragStart(null);
+          setError(null);
+          updateSelection(candidate.rect);
+          setPhase("selected");
+          return;
+        }
+        hoverSnapCandidateRef.current = null;
         if (!metadata) {
           setError("未能获取显示器信息，请取消后重试。");
           resetSelection();
@@ -600,6 +650,9 @@ export function RegionCaptureOverlay() {
       if (interaction && interaction.pointerId === event.pointerId) {
         setInteraction(null);
         setPhase("selected");
+      }
+      if (hoverSnapCandidateRef.current?.pointerId === event.pointerId) {
+        hoverSnapCandidateRef.current = null;
       }
     },
     [draftSelection, dragStart, interaction, metadata, phase, resetSelection, updateSelection]
