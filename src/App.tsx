@@ -53,6 +53,7 @@ import { NetworkInspectorTool } from "./features/network/NetworkInspectorTool";
 import { NetworkDoctorTool } from "./features/network/NetworkDoctorTool";
 import { BaseConverterTool } from "./features/devtools/BaseConverterTool";
 import { TimeConverterTool } from "./features/devtools/TimeConverterTool";
+import { TodoTool } from "./features/productivity/TodoTool";
 
 const toolRegistry: Record<string, ComponentType> = {
   "json-parser": JsonParser,
@@ -74,7 +75,8 @@ const toolRegistry: Record<string, ComponentType> = {
   "network-inspector": NetworkInspectorTool,
   "network-doctor": NetworkDoctorTool,
   "radix-converter": BaseConverterTool,
-  "time-converter": TimeConverterTool
+  "time-converter": TimeConverterTool,
+  todo: TodoTool
 };
 
 const fadeVariants = {
@@ -89,7 +91,8 @@ const moduleIcons: Record<string, LucideIcon> = {
   Image: ImageIcon,
   Monitor,
   PenTool,
-  Earth
+  Earth,
+  Check
 };
 
 const languageOptions = [

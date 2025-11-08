@@ -187,6 +187,24 @@ export const modules: ModuleMeta[] = [
     ]
   },
   {
+    id: "productivity",
+    name: "效率工具",
+    description: "记录灵感、拆解任务与节奏控管的轻量工作台。",
+    icon: "Check",
+    accent: {
+      from: "rgba(255, 170, 214, 0.32)",
+      to: "rgba(255, 214, 150, 0.32)"
+    },
+    tools: [
+      {
+        id: "todo",
+        name: "待办清单",
+        description: "记录任务、设置优先级并获取顺滑动画反馈。",
+        status: "ready"
+      }
+    ]
+  },
+  {
     id: "icons",
     name: "图标",
     description: "SVG 预览与图标转换。",
