@@ -116,6 +116,66 @@ export function RegionCaptureOverlay() {
   const [isDarkTheme, setIsDarkTheme] = useState(
     () => (typeof document !== "undefined" && document.body.classList.contains("theme-dark")) ?? false
   );
+  const panelMorphSpring = useMemo(
+    () => ({
+      type: "spring",
+      stiffness: 260,
+      damping: 38,
+      mass: 0.75
+    }),
+    []
+  );
+  const panelContentSpring = useMemo(
+    () => ({
+      type: "spring",
+      stiffness: 420,
+      damping: 32,
+      mass: 0.62
+    }),
+    []
+  );
+  const ocrPanelShapeVariants = useMemo(
+    () => ({
+      loading: {
+        borderRadius: 24,
+        paddingTop: 18,
+        paddingBottom: 22,
+        gap: 12,
+        clipPath: "inset(0% 0% 8% 0% round 28px)"
+      },
+      result: {
+        borderRadius: 34,
+        paddingTop: 28,
+        paddingBottom: 34,
+        gap: 18,
+        clipPath: "inset(0% 0% 0% 0% round 34px)"
+      }
+    }),
+    []
+  );
+  const ocrPanelContentVariants = useMemo(
+    () => ({
+      initial: {
+        opacity: 0,
+        y: 18,
+        scale: 0.98,
+        filter: "blur(6px)"
+      },
+      enter: {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        filter: "blur(0px)"
+      },
+      exit: {
+        opacity: 0,
+        y: -14,
+        scale: 0.97,
+        filter: "blur(4px)"
+      }
+    }),
+    []
+  );
 
   const isEditing = phase === "editing" && captureResult;
   const resetOcrResult = useCallback(() => {
@@ -1558,156 +1618,194 @@ export function RegionCaptureOverlay() {
                     }}
                   />
                 )}
-                <div className="relative z-[1] flex flex-col gap-4 px-5 py-4">
-                  {isOcrLoading ? (
-                  <div className="flex flex-col gap-4">
-                    <div
-                      className={clsx(
-                        "flex items-center justify-between gap-3 rounded-2xl border px-4 py-3",
-                        isNightMode
-                          ? "ocr-night-status"
-                          : isDarkTheme
-                            ? "border-white/12 bg-white/5"
-                            : "border-[rgba(15,23,42,0.08)] bg-white/90 shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
+
+                <motion.div
+                  className="relative z-[1] flex flex-col px-5"
+                  layout
+                  variants={ocrPanelShapeVariants}
+                  animate={isOcrLoading ? "loading" : "result"}
+                  transition={panelMorphSpring}
+                  initial={false}
+                >
+                  <AnimatePresence mode="popLayout">
+                    {isOcrLoading ? (
+                      <motion.div
+                        key="ocr-loading"
+                        className="flex flex-col gap-4"
+                        variants={ocrPanelContentVariants}
+                        initial="initial"
+                        animate="enter"
+                        exit="exit"
+                        transition={panelContentSpring}
+                        layout
+                      >
                         <div
                           className={clsx(
-                            "grid h-12 w-12 place-items-center rounded-2xl border",
+                            "flex items-center justify-between gap-3 rounded-2xl border px-4 py-3",
                             isNightMode
-                              ? "ocr-night-loader"
+                              ? "ocr-night-status"
                               : isDarkTheme
-                                ? "border-white/15 bg-white/5"
-                                : "border-[rgba(37,99,235,0.18)] bg-white"
-                          )}
-                          aria-hidden="true"
-                        >
-                          <span
-                            className={clsx(
-                              "inline-block",
-                              isNightMode
-                                ? "ocr-night-spinner"
-                                : "h-6 w-6 rounded-full border-2 border-transparent border-t-[rgba(102,240,255,0.9)] border-l-[rgba(92,124,250,0.65)] animate-spin"
-                            )}
-                          />
-                        </div>
-                      <div
-                        className={clsx(
-                          "flex flex-col text-sm",
-                          isNightMode ? "text-white/80" : undefined
-                        )}
-                      >
-                          <p className={clsx("font-semibold tracking-wide", ocrPanelClasses.heading)}>RapidOCR 正在解析文本</p>
-                          <p className={clsx("text-xs", ocrPanelClasses.subheading)}>基于开源模型的本地识别，请稍候…</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    <div className="flex flex-nowrap items-center gap-2">
-                      <label className={clsx("flex-1 min-w-0", ocrPanelClasses.searchFloating)}>
-                        <Search
-                          size={14}
-                          strokeWidth={1.8}
-                          className={clsx(
-                            "shrink-0",
-                            isDarkTheme ? "text-white/65" : "text-[rgba(17,27,45,0.55)]"
-                          )}
-                        />
-                        <input
-                          ref={ocrSearchInputRef}
-                          type="search"
-                          inputMode="search"
-                          autoCapitalize="none"
-                          autoCorrect="off"
-                          spellCheck={false}
-                          className={ocrPanelClasses.searchInput}
-                          aria-label="搜索识别结果"
-                          placeholder="快速搜索"
-                          value={ocrSearchQuery}
-                          onChange={(event) => setOcrSearchQuery(event.target.value)}
-                        />
-                        {ocrSearchQuery && (
-                          <button
-                            type="button"
-                            className={ocrPanelClasses.searchClear}
-                            onClick={() => setOcrSearchQuery("")}
-                            aria-label="清空搜索"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </label>
-                      <div className="flex flex-shrink-0 items-center gap-1 whitespace-nowrap">
-                        <button
-                          type="button"
-                          className={ocrPanelClasses.actionCopy}
-                          onClick={handleCopyOcrResult}
-                          disabled={!hasOcrResultText}
-                        >
-                          {ocrCopyLabel === "已复制" ? (
-                            <Check size={14} className="opacity-80" />
-                          ) : (
-                            <Copy size={14} className="opacity-80" />
-                          )}
-                          {ocrCopyLabel}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                      {normalizedOcrSearch && hasOcrResultText && hasFilteredResults && (
-                        <span className={ocrPanelClasses.pill}>筛选中</span>
-                      )}
-                      {!hasFilteredResults && hasOcrResultText && normalizedOcrSearch && (
-                        <span
-                          className={clsx(
-                            ocrPanelClasses.pill,
-                            isDarkTheme
-                              ? "border-red-200/50 text-red-200"
-                              : "border-[rgba(248,113,113,0.5)] text-[rgba(185,28,28,0.85)]"
+                                ? "border-white/12 bg-white/5"
+                                : "border-[rgba(15,23,42,0.08)] bg-white/90 shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
                           )}
                         >
-                          未匹配
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      className={clsx(
-                        "ocr-scroll-area relative max-h-[220px] overflow-y-auto select-text cursor-text",
-                        ocrPanelClasses.surface
-                      )}
-                    >
-                      <div>
-                        {hasOcrResultText ? (
-                          hasFilteredResults ? (
-                            <div className="space-y-1.5">
-                              {filteredOcrLines.map((line, lineIndex) => (
-                                <div
-                                  key={`ocr-line-${lineIndex}-${line}`}
-                                  className={clsx(ocrPanelClasses.listItem, "min-w-0 break-words")}
-                                >
-                                  {renderHighlightedLine(line, lineIndex)}
-                                </div>
-                              ))}
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={clsx(
+                                "grid h-12 w-12 place-items-center rounded-2xl border",
+                                isNightMode
+                                  ? "ocr-night-loader"
+                                  : isDarkTheme
+                                    ? "border-white/15 bg-white/5"
+                                    : "border-[rgba(37,99,235,0.18)] bg-white"
+                              )}
+                              aria-hidden="true"
+                            >
+                              <span
+                                className={clsx(
+                                  "ocr-loader-wave",
+                                  isNightMode
+                                    ? "ocr-loader-wave-night"
+                                    : isDarkTheme
+                                      ? "ocr-loader-wave-dark"
+                                      : "ocr-loader-wave-light"
+                                )}
+                              >
+                                <span />
+                                <span />
+                                <span />
+                              </span>
                             </div>
-                          ) : (
-                            <div className={clsx("flex h-32 items-center justify-center text-xs", ocrPanelClasses.noResult)}>
-                              未找到匹配结果
+                            <div
+                              className={clsx(
+                                "flex flex-col text-sm",
+                                isNightMode ? "text-white/80" : undefined
+                              )}
+                            >
+                              <p className={clsx("font-semibold tracking-wide", ocrPanelClasses.heading)}>
+                                正在解析文字...
+                              </p>
+                              <p className={clsx("text-xs", ocrPanelClasses.subheading)}>
+                                RapidOCR 模型 · 本地识别，请稍候…
+                              </p>
                             </div>
-                          )
-                        ) : (
-                          <div className={clsx("flex h-32 items-center justify-center text-xs", ocrPanelClasses.noResult)}>
-                            未识别到文字
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="ocr-result"
+                        className="flex flex-col gap-3"
+                        variants={ocrPanelContentVariants}
+                        initial="initial"
+                        animate="enter"
+                        exit="exit"
+                        transition={panelContentSpring}
+                        layout
+                      >
+                        <div className="flex flex-nowrap items-center gap-2">
+                          <label className={clsx("flex-1 min-w-0", ocrPanelClasses.searchFloating)}>
+                            <Search
+                              size={14}
+                              strokeWidth={1.8}
+                              className={clsx(
+                                "shrink-0",
+                                isDarkTheme ? "text-white/65" : "text-[rgba(17,27,45,0.55)]"
+                              )}
+                            />
+                            <input
+                              ref={ocrSearchInputRef}
+                              type="search"
+                              inputMode="search"
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
+                              className={ocrPanelClasses.searchInput}
+                              aria-label="搜索识别结果"
+                              placeholder="快速搜索"
+                              value={ocrSearchQuery}
+                              onChange={(event) => setOcrSearchQuery(event.target.value)}
+                            />
+                            {ocrSearchQuery && (
+                              <button
+                                type="button"
+                                className={ocrPanelClasses.searchClear}
+                                onClick={() => setOcrSearchQuery("")}
+                                aria-label="清空搜索"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </label>
+                          <div className="flex flex-shrink-0 items-center gap-1 whitespace-nowrap">
+                            <button
+                              type="button"
+                              className={ocrPanelClasses.actionCopy}
+                              onClick={handleCopyOcrResult}
+                              disabled={!hasOcrResultText}
+                            >
+                              {ocrCopyLabel === "已复制" ? (
+                                <Check size={14} className="opacity-80" />
+                              ) : (
+                                <Copy size={14} className="opacity-80" />
+                              )}
+                              {ocrCopyLabel}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                          {normalizedOcrSearch && hasOcrResultText && hasFilteredResults && (
+                            <span className={ocrPanelClasses.pill}>筛选中</span>
+                          )}
+                          {!hasFilteredResults && hasOcrResultText && normalizedOcrSearch && (
+                            <span
+                              className={clsx(
+                                ocrPanelClasses.pill,
+                                isDarkTheme
+                                  ? "border-red-200/50 text-red-200"
+                                  : "border-[rgba(248,113,113,0.5)] text-[rgba(185,28,28,0.85)]"
+                              )}
+                            >
+                              未匹配
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className={clsx(
+                            "ocr-scroll-area relative max-h-[220px] overflow-y-auto select-text cursor-text",
+                            ocrPanelClasses.surface
+                          )}
+                        >
+                          <div>
+                            {hasOcrResultText ? (
+                              hasFilteredResults ? (
+                                <div className="space-y-1.5">
+                                  {filteredOcrLines.map((line, lineIndex) => (
+                                    <div
+                                      key={`ocr-line-${lineIndex}-${line}`}
+                                      className={clsx(ocrPanelClasses.listItem, "min-w-0 break-words")}
+                                    >
+                                      {renderHighlightedLine(line, lineIndex)}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className={clsx("flex h-32 items-center justify-center text-xs", ocrPanelClasses.noResult)}>
+                                  未找到匹配结果
+                                </div>
+                              )
+                            ) : (
+                              <div className={clsx("flex h-32 items-center justify-center text-xs", ocrPanelClasses.noResult)}>
+                                未识别到文字
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
               </div>
-            </div>
             <button
               type="button"
               className={clsx(
