@@ -3,6 +3,7 @@ pub mod window_controls;
 pub mod file_share;
 pub mod file_search;
 pub mod color_picker;
+pub mod network;
 
 pub use region_capture::{
     cancel_region_capture, capture_region, finalize_region_capture, show_region_capture_overlay,
@@ -18,3 +19,4 @@ pub use file_share::{
 };
 pub use file_search::{pick_search_directories, search_files};
 pub use color_picker::pick_screen_color;
+pub use network::get_network_overview;

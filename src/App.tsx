@@ -47,6 +47,7 @@ import { ScreenshotTool } from "./features/system/ScreenshotTool";
 import { LanShareTool } from "./features/system/LanShareTool";
 import { FileSearchTool } from "./features/system/FileSearchTool";
 import { ColorPickerTool } from "./features/system/ColorPickerTool";
+import { NetworkInspectorTool } from "./features/network/NetworkInspectorTool";
 
 const toolRegistry: Record<string, ComponentType> = {
   "json-parser": JsonParser,
@@ -62,7 +63,8 @@ const toolRegistry: Record<string, ComponentType> = {
   "svg-preview": SvgPreviewTool,
   "icon-converter": IconConverterTool,
   "lan-share": LanShareTool,
-  "file-search": FileSearchTool
+  "file-search": FileSearchTool,
+  "network-inspector": NetworkInspectorTool
 };
 
 const fadeVariants = {

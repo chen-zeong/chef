@@ -146,14 +146,20 @@ export const modules: ModuleMeta[] = [
   },
   {
     id: "network",
-    name: "分享",
-    description: "在局域网内快速交换文件与临时链接。",
+    name: "网络",
+    description: "查看 IP / 代理状态并进行局域网分享。",
     icon: "Earth",
     accent: {
       from: "rgba(99, 179, 237, 0.28)",
       to: "rgba(59, 130, 246, 0.22)"
     },
     tools: [
+      {
+        id: "network-inspector",
+        name: "IP 查看",
+        description: "查看 IPv4/IPv6、本地网段与 VPN/代理状态。",
+        status: "ready"
+      },
       {
         id: "lan-share",
         name: "局域网快传",
