@@ -45,6 +45,7 @@ import { SvgPreviewTool } from "./features/icons/SvgPreviewTool";
 import { IconConverterTool } from "./features/icons/IconConverterTool";
 import { ScreenshotTool } from "./features/system/ScreenshotTool";
 import { LanShareTool } from "./features/system/LanShareTool";
+import { FileSearchTool } from "./features/system/FileSearchTool";
 
 const toolRegistry: Record<string, ComponentType> = {
   "json-parser": JsonParser,
@@ -58,7 +59,8 @@ const toolRegistry: Record<string, ComponentType> = {
   "region-screenshot": ScreenshotTool,
   "svg-preview": SvgPreviewTool,
   "icon-converter": IconConverterTool,
-  "lan-share": LanShareTool
+  "lan-share": LanShareTool,
+  "file-search": FileSearchTool
 };
 
 const fadeVariants = {

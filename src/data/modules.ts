@@ -129,6 +129,12 @@ export const modules: ModuleMeta[] = [
         name: "框选截图",
         description: "启动全屏遮罩，为框选截图交互做准备。",
         status: "ready"
+      },
+      {
+        id: "file-search",
+        name: "全局文件搜索",
+        description: "基于 rust_search 的本地文件检索工具。",
+        status: "ready"
       }
     ]
   },
