@@ -131,6 +131,12 @@ export const modules: ModuleMeta[] = [
         status: "ready"
       },
       {
+        id: "color-picker",
+        name: "取色器",
+        description: "调用系统取色器并记录常用颜色。",
+        status: "ready"
+      },
+      {
         id: "file-search",
         name: "全局文件搜索",
         description: "基于 rust_search 的本地文件检索工具。",

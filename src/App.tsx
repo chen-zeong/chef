@@ -46,6 +46,7 @@ import { IconConverterTool } from "./features/icons/IconConverterTool";
 import { ScreenshotTool } from "./features/system/ScreenshotTool";
 import { LanShareTool } from "./features/system/LanShareTool";
 import { FileSearchTool } from "./features/system/FileSearchTool";
+import { ColorPickerTool } from "./features/system/ColorPickerTool";
 
 const toolRegistry: Record<string, ComponentType> = {
   "json-parser": JsonParser,
@@ -57,6 +58,7 @@ const toolRegistry: Record<string, ComponentType> = {
   "env-editor": EnvVarTool,
   "stay-awake": AwakeTool,
   "region-screenshot": ScreenshotTool,
+  "color-picker": ColorPickerTool,
   "svg-preview": SvgPreviewTool,
   "icon-converter": IconConverterTool,
   "lan-share": LanShareTool,

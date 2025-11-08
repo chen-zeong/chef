@@ -9,7 +9,7 @@ use commands::{
     cancel_region_capture, capture_region, finalize_region_capture, get_file_share_status,
     list_window_snap_targets, pick_search_directories, pick_share_directories, pick_share_files,
     search_files, set_current_window_always_on_top, show_region_capture_overlay, start_file_share,
-    stop_file_share, FileShareManager,
+    stop_file_share, pick_screen_color, FileShareManager,
 };
 
 fn main() {
@@ -29,6 +29,7 @@ fn main() {
             pick_share_directories,
             pick_search_directories,
             search_files,
+            pick_screen_color,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
