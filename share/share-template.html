@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chef 局域网分享</title>
+    <style>
+      :root {
+        --accent: __ACCENT__;
+        --bg: linear-gradient(135deg, #e7eeff, #fdf4ff);
+        --panel: rgba(255, 255, 255, 0.96);
+        font-family: "SF Pro Display", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #0f172a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(18px, 4vw, 48px);
+      }
+      main {
+        width: min(980px, 100%);
+        background: var(--panel);
+        border-radius: 36px;
+        padding: clamp(20px, 4vw, 44px);
+        box-shadow: 0 35px 120px rgba(15, 23, 42, 0.18);
+        position: relative;
+        overflow: hidden;
+      }
+      main::after {
+        content: "";
+        position: absolute;
+        width: 320px;
+        height: 320px;
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.25), transparent 60%);
+        top: -140px;
+        right: -120px;
+        filter: blur(5px);
+      }
+      .content {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: clamp(20px, 3vw, 36px);
+      }
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        flex-wrap: wrap;
+      }
+      .hero__text {
+        flex: 1 1 280px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .hero__tag {
+        align-self: flex-start;
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: rgba(59, 130, 246, 0.15);
+        color: rgba(15, 23, 42, 0.75);
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+      }
+      .hero__title {
+        margin: 0;
+        font-size: clamp(1.7rem, 5vw, 2.6rem);
+      }
+      .hero__desc {
+        margin: 0;
+        color: rgba(15, 23, 42, 0.65);
+        font-size: 0.98rem;
+      }
+      .hero__stats {
+        flex: 0 0 260px;
+        border-radius: 28px;
+        padding: 18px;
+        background: linear-gradient(160deg, rgba(59, 130, 246, 0.18), rgba(255, 255, 255, 0.65));
+        backdrop-filter: blur(6px);
+        display: grid;
+        gap: 14px;
+      }
+      .stat-line {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .stat-line span:first-child {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.26em;
+        color: rgba(15, 23, 42, 0.7);
+      }
+      .stat-line span:last-child {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #0f172a;
+      }
+      .file-board {
+        border-radius: 32px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: rgba(248, 250, 252, 0.92);
+        padding: clamp(18px, 3vw, 28px);
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .file-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 16px;
+        align-items: center;
+        padding: 16px 20px;
+        border-radius: 24px;
+        background: white;
+        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.05);
+        border: 1px solid rgba(15, 23, 42, 0.04);
+      }
+      .file-card__main {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-width: 0;
+      }
+      .file-card__icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        background: rgba(59, 130, 246, 0.14);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+      }
+      .file-name {
+        margin: 0;
+        font-weight: 600;
+        font-size: 1rem;
+        color: #0f172a;
+        word-break: break-word;
+      }
+      .file-desc {
+        margin: 2px 0 0;
+        font-size: 0.85rem;
+        color: rgba(71, 85, 105, 0.9);
+      }
+      .file-meta {
+        text-align: right;
+        font-size: 0.84rem;
+        color: rgba(71, 85, 105, 0.8);
+        white-space: nowrap;
+      }
+      .file-btn {
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 20px;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: white;
+        background: linear-gradient(120deg, var(--accent), rgba(59, 130, 246, 0.9));
+        box-shadow: 0 16px 30px rgba(37, 99, 235, 0.3);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      .file-btn__icon {
+        font-size: 0.95rem;
+      }
+      .file-btn:active {
+        transform: translateY(1px);
+        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.25);
+      }
+      .footer {
+        text-align: center;
+        font-size: 0.78rem;
+        color: rgba(71, 85, 105, 0.85);
+      }
+      @media (max-width: 720px) {
+        .hero {
+          flex-direction: column;
+        }
+        .file-card {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .file-meta {
+          text-align: left;
+        }
+        .file-btn {
+          width: 100%;
+          justify-content: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="content">
+        <section class="hero">
+          <div class="hero__text">
+            <span class="hero__tag">CHEF LAN SHARE</span>
+            <h1 class="hero__title">链接只在网络内部可见</h1>
+            <p class="hero__desc">由桌面端即时托管的分享页，关闭分享后即刻失效，可放心给同网段用户下载。</p>
+          </div>
+          <div class="hero__stats">
+            <div class="stat-line">
+              <span>FILES</span>
+              <span>__FILE_COUNT__</span>
+            </div>
+            <div class="stat-line">
+              <span>SIZE</span>
+              <span>__TOTAL_SIZE__</span>
+            </div>
+            <div class="stat-line">
+              <span>NETWORK</span>
+              <span>LAN ONLY</span>
+            </div>
+          </div>
+        </section>
+        <section class="file-board">
+          __FILE_LIST__
+        </section>
+        <p class="footer">下载完成即可关闭页面，重新分享请回到桌面端点击“结束分享”后重新生成。</p>
+      </div>
+    </main>
+  </body>
+</html>

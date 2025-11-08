@@ -44,6 +44,7 @@ import { AwakeTool } from "./features/system/AwakeTool";
 import { SvgPreviewTool } from "./features/icons/SvgPreviewTool";
 import { IconConverterTool } from "./features/icons/IconConverterTool";
 import { ScreenshotTool } from "./features/system/ScreenshotTool";
+import { LanShareTool } from "./features/system/LanShareTool";
 
 const toolRegistry: Record<string, ComponentType> = {
   "json-parser": JsonParser,
@@ -56,7 +57,8 @@ const toolRegistry: Record<string, ComponentType> = {
   "stay-awake": AwakeTool,
   "region-screenshot": ScreenshotTool,
   "svg-preview": SvgPreviewTool,
-  "icon-converter": IconConverterTool
+  "icon-converter": IconConverterTool,
+  "lan-share": LanShareTool
 };
 
 const fadeVariants = {
@@ -70,7 +72,8 @@ const moduleIcons: Record<string, LucideIcon> = {
   Shield,
   Image: ImageIcon,
   Monitor,
-  PenTool
+  PenTool,
+  Earth
 };
 
 const languageOptions = [

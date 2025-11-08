@@ -133,6 +133,24 @@ export const modules: ModuleMeta[] = [
     ]
   },
   {
+    id: "network",
+    name: "分享",
+    description: "在局域网内快速交换文件与临时链接。",
+    icon: "Earth",
+    accent: {
+      from: "rgba(99, 179, 237, 0.28)",
+      to: "rgba(59, 130, 246, 0.22)"
+    },
+    tools: [
+      {
+        id: "lan-share",
+        name: "局域网快传",
+        description: "选择文件后生成扫码链接，手机即可直接下载。",
+        status: "ready"
+      }
+    ]
+  },
+  {
     id: "icons",
     name: "图标",
     description: "SVG 预览与图标转换。",
