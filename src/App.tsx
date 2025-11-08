@@ -38,6 +38,7 @@ import { Md5Tool } from "./features/encryption/Md5Tool";
 import { Base64Tool } from "./features/encryption/Base64Tool";
 import { AesTool } from "./features/encryption/AesTool";
 import { UrlCodecTool } from "./features/encryption/UrlCodecTool";
+import { PayloadDiffTool } from "./features/devtools/PayloadDiffTool";
 import { HostsTool } from "./features/system/HostsTool";
 import { EnvVarTool } from "./features/system/EnvVarTool";
 import { AwakeTool } from "./features/system/AwakeTool";
@@ -48,6 +49,7 @@ import { LanShareTool } from "./features/system/LanShareTool";
 import { FileSearchTool } from "./features/system/FileSearchTool";
 import { ColorPickerTool } from "./features/system/ColorPickerTool";
 import { NetworkInspectorTool } from "./features/network/NetworkInspectorTool";
+import { NetworkDoctorTool } from "./features/network/NetworkDoctorTool";
 
 const toolRegistry: Record<string, ComponentType> = {
   "json-parser": JsonParser,
@@ -55,6 +57,7 @@ const toolRegistry: Record<string, ComponentType> = {
   base64: Base64Tool,
   aes: AesTool,
   "url-codec": UrlCodecTool,
+  "payload-diff": PayloadDiffTool,
   "host-manager": HostsTool,
   "env-editor": EnvVarTool,
   "stay-awake": AwakeTool,
@@ -64,7 +67,8 @@ const toolRegistry: Record<string, ComponentType> = {
   "icon-converter": IconConverterTool,
   "lan-share": LanShareTool,
   "file-search": FileSearchTool,
-  "network-inspector": NetworkInspectorTool
+  "network-inspector": NetworkInspectorTool,
+  "network-doctor": NetworkDoctorTool
 };
 
 const fadeVariants = {

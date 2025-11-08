@@ -19,9 +19,9 @@ export type ModuleMeta = {
 
 export const modules: ModuleMeta[] = [
   {
-    id: "json",
-    name: "JSON 工具",
-    description: "快速解析、格式化与校验 JSON 数据。",
+    id: "encryption",
+    name: "编程工具",
+    description: "常用编码、解析与调试工具合集。",
     icon: "Braces",
     accent: {
       from: "rgba(110, 142, 255, 0.35)",
@@ -33,19 +33,13 @@ export const modules: ModuleMeta[] = [
         name: "JSON 解析器",
         description: "粘贴 JSON 字符串，一键格式化并校验。",
         status: "ready"
-      }
-    ]
-  },
-  {
-    id: "encryption",
-    name: "加密",
-    description: "经典算法与现代加密工具集合。",
-    icon: "Shield",
-    accent: {
-      from: "rgba(247, 173, 248, 0.22)",
-      to: "rgba(239, 209, 255, 0.18)"
-    },
-    tools: [
+      },
+      {
+        id: "payload-diff",
+        name: "参数对比",
+        description: "对比 URL / Cookie / Header 键值差异。",
+        status: "ready"
+      },
       {
         id: "md5",
         name: "MD5 摘要",
@@ -158,6 +152,12 @@ export const modules: ModuleMeta[] = [
         id: "network-inspector",
         name: "IP 查看",
         description: "查看 IPv4/IPv6、本地网段与 VPN/代理状态。",
+        status: "ready"
+      },
+      {
+        id: "network-doctor",
+        name: "断网急救",
+        description: "检测网络并自动执行代理 / DNS 修复清单。",
         status: "ready"
       },
       {

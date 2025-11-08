@@ -2,16 +2,15 @@ use std::{
     collections::HashMap,
     env,
     net::{Ipv4Addr, Ipv6Addr},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    process::Command,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-
-#[cfg(target_os = "macos")]
-use std::process::Command;
 
 use encoding_rs::GBK;
 use if_addrs::{get_if_addrs, IfAddr};
-use reqwest::{Client, Proxy as ReqwestProxy, Url};
+use reqwest::{header::ACCEPT, Client, Proxy as ReqwestProxy, Url};
 use serde::{Deserialize, Serialize};
+use tauri::async_runtime::spawn_blocking;
 
 #[derive(Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
@@ -51,6 +50,15 @@ struct ProxyEnvVar {
     key: String,
     value: String,
 }
+
+const PROXY_ENV_KEYS: [&str; 6] = [
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+];
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -104,6 +112,47 @@ struct ProxyEndpoint {
     source: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkDiagnosis {
+    online: bool,
+    dns_ok: bool,
+    latency_ms: Option<u128>,
+    endpoint: String,
+    timestamp: u64,
+    detail_log: Vec<String>,
+    error: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NetworkFixAction {
+    ClearProxyEnv,
+    ResetSystemProxy,
+    FlushDnsCache,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkFixResult {
+    action: NetworkFixAction,
+    success: bool,
+    messages: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct GoogleDnsResponse {
+    #[serde(rename = "Status")]
+    status: Option<u32>,
+    #[serde(rename = "Answer")]
+    answer: Option<Vec<GoogleDnsAnswer>>,
+}
+
+#[derive(Deserialize)]
+struct GoogleDnsAnswer {
+    data: Option<String>,
+}
+
 impl ProxyProtocol {
     fn scheme(self) -> &'static str {
         match self {
@@ -111,6 +160,136 @@ impl ProxyProtocol {
             ProxyProtocol::Socks5 => "socks5h",
         }
     }
+}
+
+#[tauri::command]
+pub async fn diagnose_network_connectivity() -> Result<NetworkDiagnosis, String> {
+    let endpoint = "https://www.gstatic.com/generate_204";
+    let mut detail_log = Vec::new();
+    let mut error_message: Option<String> = None;
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(5))
+        .user_agent("Chef Network Doctor/0.1")
+        .build()
+        .map_err(|err| err.to_string())?;
+
+    let mut latency_ms = None;
+    let mut online = false;
+
+    let start = Instant::now();
+    match client.get(endpoint).send().await {
+        Ok(resp) => {
+            latency_ms = Some(start.elapsed().as_millis());
+            if resp.status().is_success() {
+                detail_log.push(format!("成功访问 {endpoint}，状态码 {}", resp.status()));
+                online = true;
+            } else {
+                let msg = format!("访问 {endpoint} 返回状态码 {}", resp.status());
+                detail_log.push(msg.clone());
+                error_message = Some(msg);
+            }
+        }
+        Err(err) => {
+            let msg = format!("访问 {endpoint} 失败: {err}");
+            detail_log.push(msg.clone());
+            error_message = Some(msg);
+        }
+    }
+
+    let mut dns_ok = false;
+    match client
+        .get("https://dns.google/resolve")
+        .query(&[("name", "example.com"), ("type", "A")])
+        .header(ACCEPT, "application/dns-json")
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let http_status = resp.status();
+            let payload = resp.json::<GoogleDnsResponse>().await;
+            match payload {
+                Ok(data) => {
+                    let has_answer = data
+                        .answer
+                        .as_ref()
+                        .map(|answers| {
+                            answers.iter().any(|entry| {
+                                entry
+                                    .data
+                                    .as_deref()
+                                    .map(|v| !v.is_empty())
+                                    .unwrap_or(false)
+                            })
+                        })
+                        .unwrap_or(false);
+                    if data.status.unwrap_or(1) == 0 && has_answer {
+                        dns_ok = true;
+                        detail_log.push("DNS 解析 example.com 成功。".into());
+                    } else {
+                        let msg = format!(
+                            "DNS 响应状态 {}，未获得有效记录。",
+                            data.status.unwrap_or(1)
+                        );
+                        detail_log.push(msg.clone());
+                        if error_message.is_none() {
+                            error_message = Some(msg);
+                        }
+                    }
+                }
+                Err(err) => {
+                    let msg = format!("解析 DNS 响应失败: {err}");
+                    detail_log.push(msg.clone());
+                    if error_message.is_none() {
+                        error_message = Some(msg);
+                    }
+                }
+            }
+            detail_log.push(format!("DNS 接口 HTTP 状态 {}", http_status));
+        }
+        Err(err) => {
+            let msg = format!("请求 DNS 接口失败: {err}");
+            detail_log.push(msg.clone());
+            if error_message.is_none() {
+                error_message = Some(msg);
+            }
+        }
+    }
+
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    Ok(NetworkDiagnosis {
+        online,
+        dns_ok,
+        latency_ms,
+        endpoint: endpoint.to_string(),
+        timestamp,
+        detail_log,
+        error: error_message,
+    })
+}
+
+#[tauri::command]
+pub async fn run_network_fix_action(action: NetworkFixAction) -> Result<NetworkFixResult, String> {
+    spawn_blocking(move || execute_network_fix(action))
+        .await
+        .map_err(|err| err.to_string())?
+}
+
+fn execute_network_fix(action: NetworkFixAction) -> Result<NetworkFixResult, String> {
+    let (success, messages) = match action {
+        NetworkFixAction::ClearProxyEnv => Ok(clear_proxy_env_vars()),
+        NetworkFixAction::ResetSystemProxy => reset_system_proxy(),
+        NetworkFixAction::FlushDnsCache => flush_dns_cache(),
+    }?;
+    Ok(NetworkFixResult {
+        action,
+        success,
+        messages,
+    })
 }
 
 #[tauri::command]
@@ -221,6 +400,329 @@ pub async fn get_network_overview() -> Result<NetworkOverview, String> {
     })
 }
 
+fn clear_proxy_env_vars() -> (bool, Vec<String>) {
+    let mut cleared = Vec::new();
+    for key in PROXY_ENV_KEYS {
+        if env::var_os(key).is_some() {
+            env::remove_var(key);
+            cleared.push(key.to_string());
+        }
+    }
+    if cleared.is_empty() {
+        (true, vec!["未检测到需要清理的代理环境变量。".into()])
+    } else {
+        (
+            true,
+            vec![format!("已清理以下环境变量：{}", cleared.join(", "))],
+        )
+    }
+}
+
+fn reset_system_proxy() -> Result<(bool, Vec<String>), String> {
+    #[cfg(target_os = "macos")]
+    {
+        return macos_reset_system_proxy();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return windows_reset_system_proxy();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return linux_reset_system_proxy();
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        Ok((false, vec!["当前系统暂不支持自动重置代理。".into()]))
+    }
+}
+
+fn flush_dns_cache() -> Result<(bool, Vec<String>), String> {
+    #[cfg(target_os = "macos")]
+    {
+        return macos_flush_dns_cache();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return windows_flush_dns_cache();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return linux_flush_dns_cache();
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        Ok((false, vec!["当前系统暂不支持自动刷新 DNS 缓存。".into()]))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_reset_system_proxy() -> Result<(bool, Vec<String>), String> {
+    let output = Command::new("networksetup")
+        .arg("-listallnetworkservices")
+        .output()
+        .map_err(|err| format!("无法列出网络服务: {err}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "networksetup 返回错误：{}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let services: Vec<String> = stdout
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with("An asterisk") {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        })
+        .collect();
+    if services.is_empty() {
+        return Ok((
+            false,
+            vec!["未找到可操作的网络服务，已跳过代理重置。".into()],
+        ));
+    }
+    let mut success = false;
+    let mut messages = Vec::new();
+    for service in services.iter() {
+        success |=
+            disable_macos_proxy_flag(service, "-setwebproxystate", "HTTP 代理", &mut messages);
+        success |= disable_macos_proxy_flag(
+            service,
+            "-setsecurewebproxystate",
+            "HTTPS 代理",
+            &mut messages,
+        );
+        success |= disable_macos_proxy_flag(
+            service,
+            "-setsocksfirewallproxystate",
+            "SOCKS 代理",
+            &mut messages,
+        );
+    }
+    Ok((success, messages))
+}
+
+#[cfg(target_os = "macos")]
+fn disable_macos_proxy_flag(
+    service: &str,
+    flag: &str,
+    label: &str,
+    messages: &mut Vec<String>,
+) -> bool {
+    match Command::new("networksetup")
+        .arg(flag)
+        .arg(service)
+        .arg("off")
+        .output()
+    {
+        Ok(output) => {
+            if output.status.success() {
+                messages.push(format!("{service}: {label} 已关闭。"));
+                true
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let err = stderr.trim();
+                messages.push(format!(
+                    "{service}: {label} 关闭失败 - {}",
+                    if err.is_empty() {
+                        format!("退出码 {:?}", output.status.code())
+                    } else {
+                        err.to_string()
+                    }
+                ));
+                false
+            }
+        }
+        Err(err) => {
+            messages.push(format!("{service}: {label} 命令执行失败 - {err}"));
+            false
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_reset_system_proxy() -> Result<(bool, Vec<String>), String> {
+    let mut success = false;
+    let mut messages = Vec::new();
+    let commands: &[(&[&str], &str)] = &[
+        (&["winhttp", "reset", "proxy"], "WinHTTP 代理已重置"),
+        (
+            &["winhttp", "import", "proxy", "source=ie"],
+            "已同步系统代理配置",
+        ),
+    ];
+    for (args, label) in commands {
+        match Command::new("netsh").args(*args).output() {
+            Ok(output) => {
+                if output.status.success() {
+                    success = true;
+                    messages.push(label.to_string());
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    let msg = stderr.trim().to_string();
+                    messages.push(if msg.is_empty() {
+                        format!("{label} 失败，退出码 {:?}", output.status.code())
+                    } else {
+                        format!("{label} 失败：{msg}")
+                    });
+                }
+            }
+            Err(err) => {
+                messages.push(format!("{label} 执行失败：{err}"));
+            }
+        }
+    }
+    Ok((success, messages))
+}
+
+#[cfg(target_os = "linux")]
+fn linux_reset_system_proxy() -> Result<(bool, Vec<String>), String> {
+    let mut success = false;
+    let mut messages = Vec::new();
+    let commands: &[(&str, &[&str], &str)] = &[
+        (
+            "gsettings",
+            &["set", "org.gnome.system.proxy", "mode", "none"],
+            "已关闭 GNOME 代理模式",
+        ),
+        (
+            "gsettings",
+            &["reset-recursively", "org.gnome.system.proxy"],
+            "已重置 GNOME 代理配置",
+        ),
+    ];
+    for (program, args, label) in commands {
+        match Command::new(program).args(*args).output() {
+            Ok(output) => {
+                if output.status.success() {
+                    success = true;
+                    messages.push(label.to_string());
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    let msg = stderr.trim().to_string();
+                    messages.push(if msg.is_empty() {
+                        format!("{label} 失败，退出码 {:?}", output.status.code())
+                    } else {
+                        format!("{label} 失败：{msg}")
+                    });
+                }
+            }
+            Err(err) => {
+                messages.push(format!("{label} 执行失败：{err}"));
+            }
+        }
+    }
+    if !success {
+        messages.push("未检测到可自动重置的桌面代理设置，请手动检查。".into());
+    }
+    Ok((success, messages))
+}
+
+#[cfg(target_os = "macos")]
+fn macos_flush_dns_cache() -> Result<(bool, Vec<String>), String> {
+    let mut success = false;
+    let mut messages = Vec::new();
+    let commands: &[(&str, &[&str], &str)] = &[
+        (
+            "dscacheutil",
+            &["-flushcache"],
+            "已执行 dscacheutil -flushcache",
+        ),
+        (
+            "killall",
+            &["-HUP", "mDNSResponder"],
+            "已通知 mDNSResponder 刷新缓存",
+        ),
+    ];
+    for (program, args, label) in commands {
+        match Command::new(program).args(*args).output() {
+            Ok(output) => {
+                if output.status.success() {
+                    success = true;
+                    messages.push(label.to_string());
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    let msg = stderr.trim().to_string();
+                    messages.push(if msg.is_empty() {
+                        format!("{label} 失败，退出码 {:?}", output.status.code())
+                    } else {
+                        format!("{label} 失败：{msg}")
+                    });
+                }
+            }
+            Err(err) => messages.push(format!("{label} 执行失败：{err}")),
+        }
+    }
+    Ok((success, messages))
+}
+
+#[cfg(target_os = "windows")]
+fn windows_flush_dns_cache() -> Result<(bool, Vec<String>), String> {
+    match Command::new("ipconfig").arg("/flushdns").output() {
+        Ok(output) => {
+            if output.status.success() {
+                Ok((true, vec!["已刷新 DNS 解析缓存。".into()]))
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let msg = stderr.trim().to_string();
+                Ok((
+                    false,
+                    vec![if msg.is_empty() {
+                        format!("刷新 DNS 缓存失败，退出码 {:?}", output.status.code())
+                    } else {
+                        format!("刷新 DNS 缓存失败：{msg}")
+                    }],
+                ))
+            }
+        }
+        Err(err) => Err(format!("无法调用 ipconfig: {err}")),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_flush_dns_cache() -> Result<(bool, Vec<String>), String> {
+    let mut success = false;
+    let mut messages = Vec::new();
+    let commands: &[(&str, &[&str], &str)] = &[
+        ("resolvectl", &["flush-caches"], "resolvectl 已刷新缓存"),
+        (
+            "systemd-resolve",
+            &["--flush-caches"],
+            "systemd-resolve 已刷新缓存",
+        ),
+        ("nscd", &["-i", "hosts"], "nscd hosts 缓存已刷新"),
+    ];
+    for (program, args, label) in commands {
+        match Command::new(program).args(*args).output() {
+            Ok(output) => {
+                if output.status.success() {
+                    success = true;
+                    messages.push(label.to_string());
+                    break;
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    let msg = stderr.trim().to_string();
+                    messages.push(if msg.is_empty() {
+                        format!("{label} 失败，退出码 {:?}", output.status.code())
+                    } else {
+                        format!("{label} 失败：{msg}")
+                    });
+                }
+            }
+            Err(err) => messages.push(format!("{label} 执行失败：{err}")),
+        }
+    }
+    if !success {
+        messages.push("未能自动刷新 DNS 缓存，请手动执行对应命令。".into());
+    }
+    Ok((success, messages))
+}
+
 fn categorize_ipv4(addr: &Ipv4Addr) -> AddressCategory {
     if addr.is_loopback() {
         return AddressCategory::Loopback;
@@ -267,20 +769,13 @@ fn looks_like_vpn(name: &str) -> bool {
         "trojan",
         "shadow",
     ]
-        .iter()
-        .any(|marker| lower.contains(marker))
+    .iter()
+    .any(|marker| lower.contains(marker))
 }
 
 fn gather_proxy_env() -> Vec<ProxyEnvVar> {
-    const KEYS: [&str; 6] = [
-        "http_proxy",
-        "https_proxy",
-        "all_proxy",
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "ALL_PROXY",
-    ];
-    KEYS.iter()
+    PROXY_ENV_KEYS
+        .iter()
         .filter_map(|key| env::var(key).ok().map(|value| (key, value)))
         .filter_map(|(key, value)| {
             let trimmed = value.trim();
@@ -337,7 +832,10 @@ async fn fetch_public_ip_info(proxy: Option<&ProxyEndpoint>) -> Result<PublicIpI
     fetch_public_ip_with_client(&client, proxy.is_some()).await
 }
 
-async fn fetch_public_ip_with_client(client: &Client, prefer_global: bool) -> Result<PublicIpInfo, String> {
+async fn fetch_public_ip_with_client(
+    client: &Client,
+    prefer_global: bool,
+) -> Result<PublicIpInfo, String> {
     if prefer_global {
         if let Ok(info) = query_ipsb(client).await {
             return Ok(info);
@@ -386,10 +884,7 @@ async fn query_pconline(client: &Client) -> Result<PublicIpInfo, String> {
     let payload = text.into_owned();
     let data: PconlineResponse = serde_json::from_str(&payload).map_err(|err| err.to_string())?;
     if let Some(ip) = data.ip.clone() {
-        let mut location = data
-            .addr
-            .clone()
-            .filter(|value| !value.trim().is_empty());
+        let mut location = data.addr.clone().filter(|value| !value.trim().is_empty());
         if location.is_none() {
             let mut parts = Vec::new();
             if let Some(pro) = data.pro.clone().filter(|v| !v.trim().is_empty()) {
@@ -488,7 +983,9 @@ async fn query_ipsb(client: &Client) -> Result<PublicIpInfo, String> {
             latitude: data.latitude,
             longitude: data.longitude,
             location: match (&data.country, &data.region, &data.city) {
-                (Some(country), Some(region), Some(city)) => Some(format!("{country} {region} {city}")),
+                (Some(country), Some(region), Some(city)) => {
+                    Some(format!("{country} {region} {city}"))
+                }
                 (Some(country), Some(region), None) => Some(format!("{country} {region}")),
                 (Some(country), None, None) => Some(country.clone()),
                 _ => None,
@@ -549,26 +1046,47 @@ fn detect_macos_proxy_endpoints(endpoints: &mut Vec<ProxyEndpoint>) {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let map: HashMap<_, _> = stdout
             .lines()
-            .filter_map(|line| line.split_once(':').map(|(k, v)| (k.trim().to_string(), v.trim().to_string())))
+            .filter_map(|line| {
+                line.split_once(':')
+                    .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+            })
             .collect();
         if map.get("HTTPEnable").map(|v| v == "1").unwrap_or(false) {
             if let (Some(host), Some(port)) = (map.get("HTTPProxy"), map.get("HTTPPort")) {
                 if let Ok(port) = port.parse::<u16>() {
-                    push_endpoint(endpoints, ProxyProtocol::Http, host.clone(), port, "mac:scutil");
+                    push_endpoint(
+                        endpoints,
+                        ProxyProtocol::Http,
+                        host.clone(),
+                        port,
+                        "mac:scutil",
+                    );
                 }
             }
         }
         if map.get("HTTPSEnable").map(|v| v == "1").unwrap_or(false) {
             if let (Some(host), Some(port)) = (map.get("HTTPSProxy"), map.get("HTTPSPort")) {
                 if let Ok(port) = port.parse::<u16>() {
-                    push_endpoint(endpoints, ProxyProtocol::Https, host.clone(), port, "mac:scutil");
+                    push_endpoint(
+                        endpoints,
+                        ProxyProtocol::Https,
+                        host.clone(),
+                        port,
+                        "mac:scutil",
+                    );
                 }
             }
         }
         if map.get("SOCKSEnable").map(|v| v == "1").unwrap_or(false) {
             if let (Some(host), Some(port)) = (map.get("SOCKSProxy"), map.get("SOCKSPort")) {
                 if let Ok(port) = port.parse::<u16>() {
-                    push_endpoint(endpoints, ProxyProtocol::Socks5, host.clone(), port, "mac:scutil");
+                    push_endpoint(
+                        endpoints,
+                        ProxyProtocol::Socks5,
+                        host.clone(),
+                        port,
+                        "mac:scutil",
+                    );
                 }
             }
         }
@@ -612,7 +1130,12 @@ fn push_endpoint(
 }
 
 fn build_reqwest_proxy(endpoint: &ProxyEndpoint) -> Result<Option<ReqwestProxy>, String> {
-    let url = format!("{}://{}:{}", endpoint.protocol.scheme(), endpoint.host, endpoint.port);
+    let url = format!(
+        "{}://{}:{}",
+        endpoint.protocol.scheme(),
+        endpoint.host,
+        endpoint.port
+    );
     let proxy = ReqwestProxy::all(&url).map_err(|err| err.to_string())?;
     Ok(Some(proxy))
 }

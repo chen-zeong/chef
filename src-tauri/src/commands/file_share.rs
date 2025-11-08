@@ -13,9 +13,9 @@ use axum::{
     Router,
 };
 use mime_guess::MimeGuess;
+use once_cell::sync::Lazy;
 use rfd::FileDialog;
 use serde::Serialize;
-use once_cell::sync::Lazy;
 use tauri::async_runtime::{self, JoinHandle};
 use tokio::{fs::File, net::TcpListener, sync::Mutex};
 use tokio_util::io::ReaderStream;
@@ -103,9 +103,7 @@ pub async fn get_file_share_status(
 #[tauri::command]
 pub async fn pick_share_files() -> Result<Vec<String>, String> {
     let selection = async_runtime::spawn_blocking(|| {
-        FileDialog::new()
-            .set_title("选择要分享的文件")
-            .pick_files()
+        FileDialog::new().set_title("选择要分享的文件").pick_files()
     })
     .await
     .map_err(|err| format!("打开文件对话框失败: {err}"))?;
@@ -249,9 +247,9 @@ impl FileShareManager {
 fn build_server_files(entries: &[String]) -> Result<Vec<ServerFile>, String> {
     let mut result = Vec::new();
     for raw_path in entries {
-        let canonical = Path::new(raw_path).canonicalize().map_err(|err| {
-            format!("无法读取路径 {raw_path}: {err}")
-        })?;
+        let canonical = Path::new(raw_path)
+            .canonicalize()
+            .map_err(|err| format!("无法读取路径 {raw_path}: {err}"))?;
         let metadata = canonical
             .metadata()
             .map_err(|err| format!("无法获取文件信息 {raw_path}: {err}"))?;
@@ -274,8 +272,7 @@ fn build_server_files(entries: &[String]) -> Result<Vec<ServerFile>, String> {
                 .unwrap_or_else(|| canonical.to_string_lossy().to_string());
 
             for entry in WalkDir::new(&canonical).into_iter() {
-                let entry = entry
-                    .map_err(|err| format!("读取文件夹 {raw_path} 时出错: {err}"))?;
+                let entry = entry.map_err(|err| format!("读取文件夹 {raw_path} 时出错: {err}"))?;
                 if !entry.file_type().is_file() {
                     continue;
                 }
@@ -296,7 +293,11 @@ fn build_server_files(entries: &[String]) -> Result<Vec<ServerFile>, String> {
     Ok(result)
 }
 
-fn push_file_entry(result: &mut Vec<ServerFile>, path: &Path, display_name: String) -> Result<(), String> {
+fn push_file_entry(
+    result: &mut Vec<ServerFile>,
+    path: &Path,
+    display_name: String,
+) -> Result<(), String> {
     let metadata = path
         .metadata()
         .map_err(|err| format!("无法获取文件信息 {}: {err}", path.display()))?;
@@ -326,7 +327,10 @@ fn push_file_entry(result: &mut Vec<ServerFile>, path: &Path, display_name: Stri
 }
 
 fn collect_accessible_urls(port: u16) -> Vec<String> {
-    let mut urls = vec![format!("http://localhost:{port}"), format!("http://127.0.0.1:{port}")];
+    let mut urls = vec![
+        format!("http://localhost:{port}"),
+        format!("http://127.0.0.1:{port}"),
+    ];
     if let Ok(ifaces) = if_addrs::get_if_addrs() {
         for iface in ifaces {
             let ip = iface.ip();
@@ -396,14 +400,9 @@ async fn download_file(
                 let stream = ReaderStream::new(f);
                 let body = Body::from_stream(stream);
                 let mut response = Response::new(body);
-                let mime = file
-                    .mime
-                    .first_raw()
-                    .unwrap_or("application/octet-stream");
+                let mime = file.mime.first_raw().unwrap_or("application/octet-stream");
                 if let Ok(value) = HeaderValue::from_str(mime) {
-                    response
-                        .headers_mut()
-                        .insert(header::CONTENT_TYPE, value);
+                    response.headers_mut().insert(header::CONTENT_TYPE, value);
                 }
                 let disposition = format!(
                     "attachment; filename=\"{}\"",
@@ -416,11 +415,7 @@ async fn download_file(
                 }
                 response
             }
-            Err(_) => (
-                StatusCode::NOT_FOUND,
-                "文件不再可用，请在桌面端重新选择。",
-            )
-                .into_response(),
+            Err(_) => (StatusCode::NOT_FOUND, "文件不再可用，请在桌面端重新选择。").into_response(),
         }
     } else {
         (StatusCode::NOT_FOUND, "你要找的文件不存在。").into_response()

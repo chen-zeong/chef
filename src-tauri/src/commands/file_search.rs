@@ -3,8 +3,7 @@ use rust_search::{similarity_sort, FileSize, FilterExt, SearchBuilder};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
-    env,
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -191,7 +190,9 @@ fn run_search(options: FileSearchRequest) -> Result<FileSearchResponse, String> 
         .unwrap_or_else(default_location);
     builder = builder.location(&base_location);
 
-    let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT).clamp(1, MAX_RESULT_LIMIT);
+    let limit = limit
+        .unwrap_or(DEFAULT_RESULT_LIMIT)
+        .clamp(1, MAX_RESULT_LIMIT);
 
     if let Some(depth) = depth {
         builder = builder.depth(depth);
@@ -338,17 +339,14 @@ fn default_location() -> PathBuf {
 fn detect_home_dir() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     {
-        env::var("USERPROFILE")
-            .ok()
-            .map(PathBuf::from)
-            .or_else(|| {
-                let drive = env::var("HOMEDRIVE").ok();
-                let path = env::var("HOMEPATH").ok();
-                match (drive, path) {
-                    (Some(drive), Some(path)) => Some(PathBuf::from(format!("{drive}{path}"))),
-                    _ => None,
-                }
-            })
+        env::var("USERPROFILE").ok().map(PathBuf::from).or_else(|| {
+            let drive = env::var("HOMEDRIVE").ok();
+            let path = env::var("HOMEPATH").ok();
+            match (drive, path) {
+                (Some(drive), Some(path)) => Some(PathBuf::from(format!("{drive}{path}"))),
+                _ => None,
+            }
+        })
     }
     #[cfg(not(target_os = "windows"))]
     {
