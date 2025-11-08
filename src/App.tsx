@@ -54,6 +54,7 @@ import { NetworkDoctorTool } from "./features/network/NetworkDoctorTool";
 import { BaseConverterTool } from "./features/devtools/BaseConverterTool";
 import { TimeConverterTool } from "./features/devtools/TimeConverterTool";
 import { TodoTool } from "./features/productivity/TodoTool";
+import { NotesTool } from "./features/productivity/NotesTool";
 
 const toolRegistry: Record<string, ComponentType> = {
   "json-parser": JsonParser,
@@ -76,7 +77,8 @@ const toolRegistry: Record<string, ComponentType> = {
   "network-doctor": NetworkDoctorTool,
   "radix-converter": BaseConverterTool,
   "time-converter": TimeConverterTool,
-  todo: TodoTool
+  todo: TodoTool,
+  notes: NotesTool
 };
 
 const fadeVariants = {

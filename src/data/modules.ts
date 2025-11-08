@@ -197,6 +197,12 @@ export const modules: ModuleMeta[] = [
     },
     tools: [
       {
+        id: "notes",
+        name: "灵感便签",
+        description: "复刻锤子便签的长图体验，支持搜索与置顶。",
+        status: "ready"
+      },
+      {
         id: "todo",
         name: "待办清单",
         description: "记录任务、设置优先级并获取顺滑动画反馈。",
