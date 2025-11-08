@@ -35,6 +35,7 @@ import {
 import { modules, ModuleMeta, ToolMeta } from "./data/modules";
 import { JsonParser } from "./features/json/JsonParser";
 import { Md5Tool } from "./features/encryption/Md5Tool";
+import { FileHashTool } from "./features/encryption/FileHashTool";
 import { Base64Tool } from "./features/encryption/Base64Tool";
 import { AesTool } from "./features/encryption/AesTool";
 import { UrlCodecTool } from "./features/encryption/UrlCodecTool";
@@ -50,10 +51,13 @@ import { FileSearchTool } from "./features/system/FileSearchTool";
 import { ColorPickerTool } from "./features/system/ColorPickerTool";
 import { NetworkInspectorTool } from "./features/network/NetworkInspectorTool";
 import { NetworkDoctorTool } from "./features/network/NetworkDoctorTool";
+import { BaseConverterTool } from "./features/devtools/BaseConverterTool";
+import { TimeConverterTool } from "./features/devtools/TimeConverterTool";
 
 const toolRegistry: Record<string, ComponentType> = {
   "json-parser": JsonParser,
   md5: Md5Tool,
+  "file-hash": FileHashTool,
   base64: Base64Tool,
   aes: AesTool,
   "url-codec": UrlCodecTool,
@@ -68,7 +72,9 @@ const toolRegistry: Record<string, ComponentType> = {
   "lan-share": LanShareTool,
   "file-search": FileSearchTool,
   "network-inspector": NetworkInspectorTool,
-  "network-doctor": NetworkDoctorTool
+  "network-doctor": NetworkDoctorTool,
+  "radix-converter": BaseConverterTool,
+  "time-converter": TimeConverterTool
 };
 
 const fadeVariants = {
