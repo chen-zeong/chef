@@ -163,8 +163,8 @@ const isFavoriteSupported = (favorite: FavoriteToolRef) =>
   );
 
 const navIconVariants = {
-  expanded: { scale: 1, rotate: 0, boxShadow: "0 10px 22px rgba(215, 168, 90, 0.12)" },
-  collapsed: { scale: 1, rotate: 0, boxShadow: "0 12px 22px rgba(215, 168, 90, 0.1)" }
+  expanded: { scale: 1, rotate: 0 },
+  collapsed: { scale: 0.94, rotate: 0 }
 };
 
 const navTitleVariants = {
@@ -536,68 +536,83 @@ export default function App() {
         data-tauri-drag-region
       >
         <div className="nav__groups">
-          <div className="nav__list">
-            <motion.button
-              type="button"
-              className={clsx("nav__item", { "nav__item--active": isHomeActive })}
-              onClick={handleActivateHome}
-              whileTap={{ scale: 0.96 }}
-              title="主页"
-              aria-label="主页"
-              layout
-              data-tauri-drag-region="false"
-            >
-              <motion.span
-                className="nav__icon"
-                aria-hidden
-                variants={navIconVariants}
-                animate={isSidebarCollapsed ? "collapsed" : "expanded"}
-                transition={{ type: "spring", stiffness: 260, damping: 28, mass: 0.9 }}
-                layout
+          <LayoutGroup id="sidebar-nav">
+            <div className="nav__list">
+              <motion.button
+                type="button"
+                className={clsx("nav__item", { "nav__item--active": isHomeActive })}
+                onClick={handleActivateHome}
+                whileTap={{ scale: 0.97 }}
+                title="主页"
+                aria-label="主页"
+                layout="position"
+                data-tauri-drag-region="false"
               >
-                <Home size={22} strokeWidth={1.8} />
-              </motion.span>
-              <motion.span
-                className="nav__title"
-                variants={navTitleVariants}
-                initial="collapsed"
-                animate={isSidebarCollapsed ? "collapsed" : "expanded"}
-                transition={{
-                  duration: 0.24,
-                  ease: "easeOut",
-                  clipPath: { duration: 0.26, ease: "easeOut" }
-                }}
-                style={{
-                  WebkitClipPath: isSidebarCollapsed ? "inset(0% 96% 0% 0%)" : "inset(0% 0% 0% 0%)",
-                  clipPath: isSidebarCollapsed ? "inset(0% 96% 0% 0%)" : "inset(0% 0% 0% 0%)",
-                  transformOrigin: "left center"
-                }}
-              >
-                主页
-              </motion.span>
-            </motion.button>
-            {modules.map((module) => {
-              const isActive = !isHomeActive && module.id === activeModuleId;
-              const Icon = moduleIcons[module.icon] ?? Box;
-              return (
-                <motion.button
-                  key={module.id}
-                  type="button"
-                  onClick={() => handleActivateModule(module.id)}
-                  className={clsx("nav__item", { "nav__item--active": isActive })}
-                  whileTap={{ scale: 0.96 }}
-                  title={module.name}
-                  aria-label={module.name}
-                  layout
-                  data-tauri-drag-region="false"
-                >
+                {isHomeActive && (
                   <motion.span
-                    className="nav__icon"
+                    layoutId="nav-item-highlight"
+                    className="nav__item-highlight"
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
                     aria-hidden
-                    variants={navIconVariants}
-                    animate={isSidebarCollapsed ? "collapsed" : "expanded"}
-                    transition={{ type: "spring", stiffness: 260, damping: 28, mass: 0.9 }}
-                    layout
+                  />
+                )}
+                <motion.span
+                  className="nav__icon"
+                  aria-hidden
+                  variants={navIconVariants}
+                  animate={isSidebarCollapsed ? "collapsed" : "expanded"}
+                  transition={{ duration: 0.22, ease: "easeOut" }}
+                >
+                  <Home size={22} strokeWidth={1.8} />
+                </motion.span>
+                <motion.span
+                  className="nav__title"
+                  variants={navTitleVariants}
+                  initial="collapsed"
+                  animate={isSidebarCollapsed ? "collapsed" : "expanded"}
+                  transition={{
+                    duration: 0.24,
+                    ease: "easeOut",
+                    clipPath: { duration: 0.26, ease: "easeOut" }
+                  }}
+                  style={{
+                    WebkitClipPath: isSidebarCollapsed ? "inset(0% 96% 0% 0%)" : "inset(0% 0% 0% 0%)",
+                    clipPath: isSidebarCollapsed ? "inset(0% 96% 0% 0%)" : "inset(0% 0% 0% 0%)",
+                    transformOrigin: "left center"
+                  }}
+                >
+                  主页
+                </motion.span>
+              </motion.button>
+              {modules.map((module) => {
+                const isActive = !isHomeActive && module.id === activeModuleId;
+                const Icon = moduleIcons[module.icon] ?? Box;
+                return (
+                  <motion.button
+                    key={module.id}
+                    type="button"
+                    onClick={() => handleActivateModule(module.id)}
+                    className={clsx("nav__item", { "nav__item--active": isActive })}
+                    whileTap={{ scale: 0.97 }}
+                    title={module.name}
+                    aria-label={module.name}
+                    layout="position"
+                    data-tauri-drag-region="false"
+                  >
+                    {isActive && (
+                      <motion.span
+                        layoutId="nav-item-highlight"
+                        className="nav__item-highlight"
+                        transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                        aria-hidden
+                      />
+                    )}
+                    <motion.span
+                      className="nav__icon"
+                      aria-hidden
+                      variants={navIconVariants}
+                      animate={isSidebarCollapsed ? "collapsed" : "expanded"}
+                    transition={{ duration: 0.22, ease: "easeOut" }}
                   >
                     <Icon size={22} strokeWidth={1.8} />
                   </motion.span>
@@ -621,10 +636,11 @@ export default function App() {
                   >
                     {module.name}
                   </motion.span>
-                </motion.button>
-              );
-            })}
-          </div>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </LayoutGroup>
         </div>
       </motion.aside>
       <div className="main">
@@ -883,10 +899,10 @@ export default function App() {
                               opacity: disabled
                                 ? 0
                                 : hoveredToolId === tool.id
-                                  ? 0.4
+                                  ? 0.22
                                   : isActive
-                                    ? 0.44
-                                    : 0.22
+                                    ? 0.26
+                                    : 0.12
                             }}
                             transition={{ duration: 0.28, ease: "easeOut" }}
                           />
@@ -909,17 +925,17 @@ export default function App() {
                               scale: disabled
                                 ? 1
                                 : isActive
-                                  ? 1.02
+                                  ? 1.008
                                   : hoveredToolId === tool.id
-                                    ? 1.01
+                                    ? 1.004
                                     : 1,
                               opacity: disabled ? 0.42 : 1,
-                              y: isActive ? -1 : hoveredToolId === tool.id ? -1 : 0
+                              y: disabled ? 0 : isActive ? -0.5 : hoveredToolId === tool.id ? -0.5 : 0
                             }}
-                            whileHover={disabled ? undefined : { y: -1 }}
-                            whileTap={{ scale: disabled ? 1 : 0.95 }}
+                            whileHover={disabled ? undefined : { y: -0.5 }}
+                            whileTap={disabled ? undefined : { y: 1.5, scale: 0.985 }}
                             layout
-                            transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.9 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
                           >
                             <div className="tool-card__header">
                               <span className="tool-card__name">
