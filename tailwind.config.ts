@@ -52,8 +52,23 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)"
       },
       fontFamily: {
-        sans: ["var(--font-sans)", ...fontFamily.sans],
-        mono: ["var(--font-mono)", ...fontFamily.mono]
+        sans: [
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "\"Segoe UI\"",
+          "Helvetica",
+          "Arial",
+          "sans-serif",
+          ...fontFamily.sans
+        ],
+        mono: [
+          "SFMono-Regular",
+          "Menlo",
+          "Consolas",
+          "\"Liberation Mono\"",
+          "monospace",
+          ...fontFamily.mono
+        ]
       },
       keyframes: {
         "accordion-down": {

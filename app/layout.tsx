@@ -1,16 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans"
-});
-
-const jetBrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono"
-});
 
 export const metadata: Metadata = {
   title: "Chef",
@@ -24,7 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <body className={`${inter.variable} ${jetBrainsMono.variable}`}>{children}</body>
+      <body>{children}</body>
     </html>
   );
 }
