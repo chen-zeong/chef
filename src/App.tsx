@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ComponentType,
   useCallback,
@@ -32,6 +34,11 @@ import {
   PenTool,
   ArrowUpRight
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { modules, ModuleMeta, ToolMeta } from "./data/modules";
 import { JsonParser } from "./features/json/JsonParser";
 import { Md5Tool } from "./features/encryption/Md5Tool";
@@ -121,6 +128,16 @@ type ReadyToolOption = {
 
 const FAVORITES_STORAGE_KEY = "chef-favorites";
 
+function buildDefaultFavorites(): FavoriteToolRef[] {
+  return modules
+    .map<FavoriteToolRef | null>((module) => {
+      const readyTool = module.tools.find((tool) => tool.status === "ready");
+      return readyTool ? { moduleId: module.id, toolId: readyTool.id } : null;
+    })
+    .filter((value): value is FavoriteToolRef => value !== null)
+    .slice(0, 4);
+}
+
 function splitToolTitle(name: string): [string, string] {
   const trimmed = name.trim();
   if (!trimmed) {
@@ -182,6 +199,9 @@ const sidebarVariants: Variants = {
   }
 };
 
+const MotionButton = motion(Button);
+const MotionCard = motion(Card);
+
 export default function App() {
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -189,69 +209,77 @@ export default function App() {
   const langMenuRef = useRef<HTMLDivElement | null>(null);
   const langButtonRef = useRef<HTMLButtonElement | null>(null);
   const [isHomeActive, setHomeActive] = useState(true);
-  const [favoriteTools, setFavoriteTools] = useState<FavoriteToolRef[]>(() => {
-    if (typeof window !== "undefined") {
-      const stored = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed)) {
-            return parsed
-              .filter(
-                (value: unknown): value is FavoriteToolRef =>
-                  !!value &&
-                  typeof value === "object" &&
-                  "moduleId" in value &&
-                  "toolId" in value &&
-                  typeof (value as FavoriteToolRef).moduleId === "string" &&
-                  typeof (value as FavoriteToolRef).toolId === "string"
-              )
-              .filter(isFavoriteSupported);
-          }
-        } catch {
-          /* 忽略解析错误并回退到默认值 */
-        }
-      }
-    }
-    return modules
-      .map<FavoriteToolRef | null>((module) => {
-        const readyTool = module.tools.find((tool) => tool.status === "ready");
-        return readyTool ? { moduleId: module.id, toolId: readyTool.id } : null;
-      })
-      .filter((value): value is FavoriteToolRef => value !== null)
-      .slice(0, 4);
-  });
-  const [language, setLanguage] = useState<LanguageCode>(() => {
-    if (typeof window === "undefined") {
-      return languageOptions[0].code;
-    }
-    const stored = window.localStorage.getItem("chef-language");
-    if (stored && languageOptions.some((option) => option.code === stored)) {
-      return stored as LanguageCode;
-    }
-    return languageOptions[0].code;
-  });
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    if (typeof window === "undefined") {
-      return "dark";
-    }
-    const stored = window.localStorage.getItem("chef-theme");
-    if (stored === "light" || stored === "dark") {
-      return stored;
-    }
-    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
-    return prefersDark ? "dark" : "light";
-  });
+  const [favoriteTools, setFavoriteTools] = useState<FavoriteToolRef[]>(() => buildDefaultFavorites());
+  const [language, setLanguage] = useState<LanguageCode>(languageOptions[0].code);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [isLangMenuOpen, setLangMenuOpen] = useState(false);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const stored = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+    if (!stored) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) {
+        return;
+      }
+      const next = parsed
+        .filter(
+          (value: unknown): value is FavoriteToolRef =>
+            !!value &&
+            typeof value === "object" &&
+            "moduleId" in value &&
+            "toolId" in value &&
+            typeof (value as FavoriteToolRef).moduleId === "string" &&
+            typeof (value as FavoriteToolRef).toolId === "string"
+        )
+        .filter(isFavoriteSupported);
+      setFavoriteTools(next);
+    } catch {
+      /* ignore malformed favorites */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const stored = window.localStorage.getItem("chef-language");
+    if (stored && languageOptions.some((option) => option.code === stored)) {
+      setLanguage(stored as LanguageCode);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const stored = window.localStorage.getItem("chef-theme");
+    if (stored === "light" || stored === "dark") {
+      setTheme(stored);
+      return;
+    }
+    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
+    setTheme(prefersDark ? "dark" : "light");
+  }, []);
+
+  useEffect(() => {
     const body = document.body;
+    const root = document.documentElement;
     body.classList.remove("theme-dark", "theme-light");
     body.classList.add(`theme-${theme}`);
+    root.classList.toggle("dark", theme === "dark");
     window.localStorage.setItem("chef-theme", theme);
   }, [theme]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
     window.localStorage.setItem("chef-language", language);
   }, [language]);
 
@@ -601,35 +629,41 @@ export default function App() {
       </motion.aside>
       <div className="main">
         <header className="topbar" data-tauri-drag-region>
-          <button
+          <Button
             type="button"
+            variant="bare"
+            size="icon"
             className="topbar__toggle"
             onClick={() => setSidebarCollapsed((prev) => !prev)}
             aria-label={isSidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
             data-tauri-drag-region="false"
           >
             <PanelToggleIcon size={18} strokeWidth={1.8} />
-          </button>
+          </Button>
           <div className="topbar__center" data-tauri-drag-region>
             <div className="topbar__drag-spacer" data-tauri-drag-region />
             <div className="topbar__search" data-tauri-drag-region="false">
               <Search size={16} strokeWidth={1.6} />
-              <input
+              <Input
                 type="search"
                 placeholder="搜索工具..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 data-tauri-drag-region="false"
+                className="topbar__search-input"
               />
               {searchTerm && (
-                <button
+                <Button
                   type="button"
+                  variant="bare"
+                  size="icon"
                   onClick={() => setSearchTerm("")}
                   aria-label="清除搜索"
+                  className="topbar__search-clear"
                   data-tauri-drag-region="false"
                 >
                   <X size={16} strokeWidth={1.8} />
-                </button>
+                </Button>
               )}
               <AnimatePresence>
                 {searchTerm && (
@@ -679,8 +713,10 @@ export default function App() {
             <div className="topbar__drag-spacer" data-tauri-drag-region />
           </div>
           <div className="topbar__info" data-tauri-drag-region="false">
-            <motion.button
+            <MotionButton
               type="button"
+              variant="bare"
+              size="icon"
               className="topbar__theme"
               onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
               aria-label={theme === "dark" ? "切换到日间模式" : "切换到夜间模式"}
@@ -703,10 +739,12 @@ export default function App() {
                   <ThemeToggleIcon size={18} strokeWidth={1.8} />
                 </motion.span>
               </AnimatePresence>
-            </motion.button>
+            </MotionButton>
             <div className="topbar__lang" ref={langMenuRef} data-tauri-drag-region="false">
-              <motion.button
+              <MotionButton
                 type="button"
+                variant="bare"
+                size="none"
                 className="topbar__lang-trigger"
                 onClick={() => setLangMenuOpen((prev) => !prev)}
                 aria-haspopup="listbox"
@@ -740,7 +778,7 @@ export default function App() {
                     <Earth size={16} strokeWidth={1.6} />
                   </motion.span>
                 </AnimatePresence>
-              </motion.button>
+              </MotionButton>
               <AnimatePresence>
                 {isLangMenuOpen && (
                   <motion.ul
@@ -1044,8 +1082,10 @@ function HomeDashboard({
           <span className="home__section-count">共 {favoriteCount} 个</span>
         </div>
         <div className="home__actions">
-          <motion.button
+          <MotionButton
             type="button"
+            variant="bare"
+            size="none"
             className={clsx("home__manage-button", { "home__manage-button--active": isDeleteMode })}
             onClick={() => {
               setDeleteMode((prev) => {
@@ -1061,9 +1101,11 @@ function HomeDashboard({
           >
             <Trash2 size={15} strokeWidth={1.8} />
             <span>{isDeleteMode ? "完成" : "删除"}</span>
-          </motion.button>
-          <motion.button
+          </MotionButton>
+          <MotionButton
             type="button"
+            variant="bare"
+            size="none"
             className="home__add-button"
             onClick={() => {
               setDeleteMode(false);
@@ -1074,7 +1116,7 @@ function HomeDashboard({
           >
             <Plus size={16} strokeWidth={1.8} />
             <span>添加工具</span>
-          </motion.button>
+          </MotionButton>
         </div>
       </div>
 
@@ -1091,7 +1133,7 @@ function HomeDashboard({
               <motion.div className="home__favorites-grid" layout>
                 <AnimatePresence mode="popLayout">
                   {favoriteDetails.map(({ favorite, option }) => (
-                    <motion.article
+                    <MotionCard
                       key={`${favorite.moduleId}-${favorite.toolId}`}
                       className={clsx("home-card", { "home-card--deleting": isDeleteMode })}
                       layout
@@ -1118,14 +1160,18 @@ function HomeDashboard({
                         </div>
                         <p className="home-card__description">{option.tool.description}</p>
                         <div className="home-card__footer">
-                          <span className="home-card__module">{option.moduleName}</span>
+                          <Badge variant="outline" className="home-card__module-badge">
+                            {option.moduleName}
+                          </Badge>
                         </div>
                       </button>
                       <AnimatePresence>
                         {isDeleteMode && (
-                          <motion.button
+                          <MotionButton
                             key="remove"
                             type="button"
+                            variant="bare"
+                            size="icon"
                             className="home-card__remove"
                             onClick={() => onRemoveFavorite(favorite)}
                             initial={{ opacity: 0, scale: 0.8 }}
@@ -1136,10 +1182,10 @@ function HomeDashboard({
                             aria-label={`移除 ${option.tool.name}`}
                           >
                             <X size={12} strokeWidth={1.8} />
-                          </motion.button>
+                          </MotionButton>
                         )}
                       </AnimatePresence>
-                    </motion.article>
+                    </MotionCard>
                   ))}
                 </AnimatePresence>
               </motion.div>
@@ -1155,7 +1201,7 @@ function HomeDashboard({
 
       <AnimatePresence>
         {isPickerOpen && (
-          <motion.div
+          <MotionCard
             className="home__picker"
             initial={{ opacity: 0, y: 12, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1164,42 +1210,54 @@ function HomeDashboard({
           >
             <div className="home__picker-header">
               <span>添加常用工具</span>
-              <button type="button" onClick={handleClosePicker} aria-label="关闭选择器">
+              <Button
+                type="button"
+                variant="bare"
+                size="icon"
+                onClick={handleClosePicker}
+                aria-label="关闭选择器"
+                className="home__picker-close"
+              >
                 <X size={16} strokeWidth={1.8} />
-              </button>
+              </Button>
             </div>
             <div className="home__picker-search">
               <Search size={14} strokeWidth={1.6} />
-              <input
+              <Input
                 type="search"
                 value={pickerKeyword}
                 onChange={(event) => setPickerKeyword(event.target.value)}
                 placeholder="搜索工具或模块"
+                className="home__picker-search-input"
               />
             </div>
-            <div className="home__picker-list">
-              {filteredOptions.length ? (
-                filteredOptions.map((option) => (
-                  <button
-                    key={`${option.moduleId}-${option.tool.id}`}
-                    type="button"
-                    className="home__picker-item"
-                    onClick={() => handleAddToFavorites(option)}
-                  >
-                    <div className="home__picker-item-texts">
-                      <span className="home__picker-item-title">{option.tool.name}</span>
-                      <span className="home__picker-item-meta">
-                        {option.moduleName} · {option.tool.description}
-                      </span>
-                    </div>
-                    <Plus size={14} strokeWidth={1.8} />
-                  </button>
-                ))
-              ) : (
-                <div className="home__picker-empty">没有更多工具可添加或搜索结果为空。</div>
-              )}
-            </div>
-          </motion.div>
+            <ScrollArea className="home__picker-scroll">
+              <div className="home__picker-list">
+                {filteredOptions.length ? (
+                  filteredOptions.map((option) => (
+                    <Button
+                      key={`${option.moduleId}-${option.tool.id}`}
+                      type="button"
+                      variant="bare"
+                      size="none"
+                      className="home__picker-item"
+                      onClick={() => handleAddToFavorites(option)}
+                    >
+                      <div className="home__picker-item-texts">
+                        <span className="home__picker-item-title">{option.tool.name}</span>
+                        <span className="home__picker-item-meta">
+                          {option.moduleName} · {option.tool.description}
+                        </span>
+                      </div>
+                      <Plus size={14} strokeWidth={1.8} />
+                    </Button>
+                  ))
+                ) : (
+                  <div className="home__picker-empty">没有更多工具可添加或搜索结果为空。</div>
+                )}
+              </div>
+            </ScrollArea>
+          </MotionCard>
         )}
       </AnimatePresence>
     </motion.section>

@@ -100,7 +100,7 @@ export function InlineEditorLayout({
     <>
       <div className="relative h-full w-full select-none">
         <canvas
-          ref={canvasRef}
+          ref={canvasRef as RefObject<HTMLCanvasElement>}
           width={payload.width}
           height={payload.height}
           className="h-full w-full touch-none"

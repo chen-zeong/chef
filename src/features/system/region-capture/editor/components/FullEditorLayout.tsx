@@ -90,7 +90,7 @@ export function FullEditorLayout({
         <div className="flex flex-col items-center gap-3">
           <div className="rounded-[26px] border border-[rgba(15,23,42,0.12)] bg-white/95 p-5 shadow-[0_30px_60px_rgba(15,23,42,0.3)]">
             <canvas
-              ref={canvasRef}
+              ref={canvasRef as RefObject<HTMLCanvasElement>}
               width={payload.width}
               height={payload.height}
               className="rounded-[18px] shadow-inner"

@@ -9,6 +9,9 @@ import { MIN_SELECTION_SIZE } from "./RegionCaptureOverlayConstants";
 import type { OverlayMetadata } from "../regionCaptureTypes";
 
 export function readMetadataFromQuery(): OverlayMetadata | null {
+  if (typeof window === "undefined" || typeof window.location === "undefined") {
+    return null;
+  }
   const params = new URLSearchParams(window.location.search);
   if (params.get("window") !== "overlay") {
     return null;
@@ -68,7 +71,8 @@ export function normalizeMetadata(input: unknown): OverlayMetadata | null {
     logicalWidth === null ||
     logicalHeight === null ||
     logicalWidth <= 0 ||
-    logicalHeight <= 0
+    logicalHeight <= 0 ||
+    primaryHeight === null
   ) {
     return null;
   }

@@ -1,5 +1,8 @@
+"use client";
+
 import clsx from "clsx";
 import { AnimatePresence, motion } from "framer-motion";
+import type { Transition } from "framer-motion";
 import { Check, Copy, Search } from "lucide-react";
 import {
   useCallback,
@@ -116,7 +119,7 @@ export function RegionCaptureOverlay() {
   const [isDarkTheme, setIsDarkTheme] = useState(
     () => (typeof document !== "undefined" && document.body.classList.contains("theme-dark")) ?? false
   );
-  const panelMorphSpring = useMemo(
+  const panelMorphSpring = useMemo<Transition>(
     () => ({
       type: "spring",
       stiffness: 260,
@@ -125,7 +128,7 @@ export function RegionCaptureOverlay() {
     }),
     []
   );
-  const panelContentSpring = useMemo(
+  const panelContentSpring = useMemo<Transition>(
     () => ({
       type: "spring",
       stiffness: 420,

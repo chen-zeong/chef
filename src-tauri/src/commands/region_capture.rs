@@ -160,7 +160,7 @@ pub async fn show_region_capture_overlay(
             }
 
             let url = format!(
-                "/index.html?window=overlay&origin_x={}&origin_y={}&width={}&height={}&scale={}&logical_origin_x={}&logical_origin_y={}&logical_width={}&logical_height={}&primary_height={}",
+                "/?window=overlay&origin_x={}&origin_y={}&width={}&height={}&scale={}&logical_origin_x={}&logical_origin_y={}&logical_width={}&logical_height={}&primary_height={}",
                 position.x,
                 position.y,
                 size.width,

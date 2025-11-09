@@ -735,8 +735,27 @@
 
 @layer base {
   :root {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     color: var(--text-primary);
+    --background: 0 0% 100%;
+    --foreground: 224 71.4% 4.1%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 71.4% 4.1%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71.4% 4.1%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 47.4% 11.2%;
+    --radius: 0.875rem;
     --app-bg: #f4f5f9;
     --sidebar-bg: #f0f2f6;
     --sidebar-border: rgba(15, 23, 42, 0.08);
@@ -769,7 +788,29 @@
     --shadow-medium: 0 18px 42px rgba(15, 23, 42, 0.12);
   }
 
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+    --card: 224 71% 4%;
+    --card-foreground: 213 31% 91%;
+    --popover: 224 71% 4%;
+    --popover-foreground: 213 31% 91%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 215 27.9% 16.9%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 215 27.9% 16.9%;
+    --muted-foreground: 217.9 10.6% 64.9%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 72.2% 50.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 215 27.9% 16.9%;
+    --input: 215 27.9% 16.9%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+
   body.theme-dark {
+    color-scheme: dark;
     --app-bg: #12131b;
     --sidebar-bg: #191a24;
     --sidebar-border: rgba(255, 255, 255, 0.08);
@@ -805,12 +846,11 @@
   *,
   *::before,
   *::after {
-    @apply box-border;
+    @apply box-border border-border;
   }
 
   html,
-  body,
-  #root {
+  body {
     @apply h-full;
   }
 
@@ -819,7 +859,7 @@
   }
 
   body {
-    @apply m-0 h-full min-h-screen overflow-hidden bg-[var(--app-bg)] text-[var(--text-primary)] transition-colors duration-300 ease-in-out;
+    @apply m-0 h-full min-h-screen overflow-hidden bg-[var(--app-bg)] text-[var(--text-primary)] antialiased transition-colors duration-300 ease-in-out;
   }
 
   body.region-capture-overlay {
@@ -840,9 +880,10 @@
   }
 
   .nav {
-    @apply relative flex w-[220px] flex-col gap-[1.4rem] overflow-hidden border-r border-[color:var(--sidebar-border)] bg-[var(--sidebar-bg)] px-[1.15rem] py-[1.4rem] transition-all duration-300 ease-[cubic-bezier(0.22,0.61,0.36,1)];
+    @apply relative flex w-[220px] flex-col gap-[1.4rem] overflow-hidden border-r border-[color:var(--sidebar-border)] bg-[var(--sidebar-bg)] px-[1.15rem] py-[1.4rem] transition-all duration-300;
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
+    transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
   }
 
   .nav--collapsed {
@@ -1510,7 +1551,7 @@
     @apply mt-auto flex items-center justify-between pt-[0.4rem];
   }
 
-  .home-card__module {
+  .home-card__module-badge {
     @apply inline-flex items-center gap-[0.3rem] rounded-[8px] border px-[0.5rem] py-[0.2rem] text-[0.62rem] font-semibold tracking-[0.08em];
     border-color: var(--home-card-accent, rgba(110, 142, 255, 0.32));
     background: var(--home-card-tint, rgba(110, 142, 255, 0.12));
@@ -1518,7 +1559,7 @@
     font-weight: 700;
   }
 
-  .home-card__module::before {
+  .home-card__module-badge::before {
     content: "";
     width: 6px;
     height: 6px;
@@ -1604,21 +1645,17 @@
     @apply flex items-center gap-[0.4rem] rounded-[12px] border border-[rgba(210,216,230,0.45)] bg-[rgba(248,250,255,0.9)] px-[0.6rem] py-[0.45rem];
   }
 
-  .home__picker-search input {
+  .home__picker-search input,
+  .home__picker-search .home__picker-search-input {
     @apply flex-1 border-0 bg-transparent text-[0.86rem] text-[var(--text-secondary)] outline-none;
   }
 
+  .home__picker-scroll {
+    @apply max-h-[420px] pr-[0.2rem];
+  }
+
   .home__picker-list {
-    @apply flex max-h-[420px] flex-col gap-[0.45rem] overflow-y-auto pr-[0.2rem];
-  }
-
-  .home__picker-list::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .home__picker-list::-webkit-scrollbar-thumb {
-    background: rgba(210, 216, 230, 0.5);
-    border-radius: 999px;
+    @apply flex flex-col gap-[0.45rem];
   }
 
   .home__picker-item {
@@ -1935,14 +1972,14 @@
     background: rgba(60, 66, 92, 0.16);
   }
 
-  body.theme-dark .home-card__module {
+  body.theme-dark .home-card__module-badge {
     background: rgba(44, 46, 58, 0.82);
     border-color: rgba(255, 213, 142, 0.24);
     color: rgba(236, 232, 222, 0.9);
     box-shadow: 0 12px 20px rgba(6, 8, 22, 0.42);
   }
 
-  body.theme-dark .home-card__module::before {
+  body.theme-dark .home-card__module-badge::before {
     opacity: 0.78;
     color: rgba(255, 213, 142, 0.88);
   }
@@ -2016,7 +2053,7 @@
     color: rgba(214, 214, 220, 0.55);
   }
 
-body.theme-dark .home__picker-empty {
+  body.theme-dark .home__picker-empty {
     border-color: rgba(255, 255, 255, 0.1);
     color: rgba(214, 214, 220, 0.6);
   }

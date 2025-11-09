@@ -47,7 +47,7 @@ export function TextInputOverlay({
         style={{ position: "fixed", left: `${left}px`, top: `${top}px` }}
       >
         <input
-          ref={inputRef}
+          ref={inputRef as RefObject<HTMLInputElement>}
           value={entry.value}
           onChange={onChange}
           onKeyDown={onKeyDown}
