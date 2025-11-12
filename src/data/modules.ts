@@ -85,30 +85,6 @@ export const modules: ModuleMeta[] = [
     ]
   },
   {
-    id: "images",
-    name: "图片处理",
-    description: "基础调色到转码的图像工具集。",
-    icon: "Image",
-    accent: {
-      from: "rgba(255, 212, 142, 0.22)",
-      to: "rgba(255, 244, 174, 0.2)"
-    },
-    tools: [
-      {
-        id: "compressor",
-        name: "图片压缩",
-        description: "无损压缩图像体积，支持批量处理。",
-        status: "soon"
-      },
-      {
-        id: "converter",
-        name: "格式转换",
-        description: "在常见图片格式间互转。",
-        status: "soon"
-      }
-    ]
-  },
-  {
     id: "system",
     name: "电脑操作",
     description: "常用的本机调试与配置工具。",
@@ -167,9 +143,9 @@ export const modules: ModuleMeta[] = [
     },
     tools: [
       {
-        id: "network-inspector",
-        name: "IP 查看",
-        description: "查看 IPv4/IPv6、本地网段与 VPN/代理状态。",
+        id: "lan-share",
+        name: "局域网快传",
+        description: "选择文件后生成扫码链接，手机即可直接下载。",
         status: "ready"
       },
       {
@@ -179,9 +155,9 @@ export const modules: ModuleMeta[] = [
         status: "ready"
       },
       {
-        id: "lan-share",
-        name: "局域网快传",
-        description: "选择文件后生成扫码链接，手机即可直接下载。",
+        id: "network-inspector",
+        name: "IP 查看",
+        description: "查看 IPv4/IPv6、本地网段与 VPN/代理状态。",
         status: "ready"
       }
     ]

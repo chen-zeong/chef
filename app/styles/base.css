@@ -1,0 +1,134 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--text-primary);
+  --background: 0 0% 100%;
+  --foreground: 224 71.4% 4.1%;
+  --card: 0 0% 100%;
+  --card-foreground: 224 71.4% 4.1%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 71.4% 4.1%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 47.4% 11.2%;
+  --radius: 0.875rem;
+  --app-bg: #f4f5f9;
+  --sidebar-bg: #f0f2f6;
+  --sidebar-border: rgba(15, 23, 42, 0.08);
+  --sidebar-hover: rgba(37, 99, 235, 0.08);
+  --sidebar-active: rgba(37, 99, 235, 0.12);
+  --sidebar-active-border: rgba(37, 99, 235, 0.35);
+  --topbar-bg: rgba(255, 255, 255, 0.9);
+  --topbar-border: rgba(15, 23, 42, 0.08);
+  --main-bg: #ffffff;
+  --surface-bg: #ffffff;
+  --surface-alt-bg: #f4f5fb;
+  --panel-bg: #ffffff;
+  --panel-border: rgba(15, 23, 42, 0.08);
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --text-tertiary: #6b7280;
+  --icon-muted: #94a3b8;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --positive: #15803d;
+  --negative: #dc2626;
+  --border-subtle: rgba(15, 23, 42, 0.06);
+  --border-strong: rgba(15, 23, 42, 0.16);
+  --hover-bg: rgba(15, 23, 42, 0.04);
+  --input-bg: #ffffff;
+  --input-border: rgba(15, 23, 42, 0.12);
+  --chip-bg: rgba(148, 163, 184, 0.12);
+  --chip-border: rgba(148, 163, 184, 0.26);
+  --shadow-soft: 0 6px 16px rgba(15, 23, 42, 0.08);
+  --shadow-medium: 0 18px 42px rgba(15, 23, 42, 0.12);
+}
+
+.dark {
+  --background: 224 71% 4%;
+  --foreground: 213 31% 91%;
+  --card: 224 71% 4%;
+  --card-foreground: 213 31% 91%;
+  --popover: 224 71% 4%;
+  --popover-foreground: 213 31% 91%;
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 215 27.9% 16.9%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 215 27.9% 16.9%;
+  --muted-foreground: 217.9 10.6% 64.9%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 72.2% 50.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 215 27.9% 16.9%;
+  --input: 215 27.9% 16.9%;
+  --ring: 212.7 26.8% 83.9%;
+}
+
+body.theme-dark {
+  color-scheme: dark;
+  --app-bg: #12131b;
+  --sidebar-bg: #191a24;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-hover: rgba(255, 255, 255, 0.1);
+  --sidebar-active: rgba(255, 255, 255, 0.14);
+  --sidebar-active-border: rgba(255, 255, 255, 0.24);
+  --topbar-bg: rgba(26, 26, 36, 0.92);
+  --topbar-border: rgba(255, 255, 255, 0.08);
+  --main-bg: #151622;
+  --surface-bg: #1e1f2a;
+  --surface-alt-bg: #242531;
+  --panel-bg: #1a1b28;
+  --panel-border: rgba(255, 255, 255, 0.12);
+  --text-primary: #f5f5f7;
+  --text-secondary: #d4d4da;
+  --text-tertiary: #9797a4;
+  --icon-muted: #8a8a96;
+  --accent: #d7a85a;
+  --accent-strong: #edc36f;
+  --positive: #66d7ab;
+  --negative: #f67f7f;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --hover-bg: rgba(255, 255, 255, 0.12);
+  --input-bg: rgba(30, 30, 40, 0.92);
+  --input-border: rgba(255, 255, 255, 0.1);
+  --chip-bg: rgba(255, 255, 255, 0.08);
+  --chip-border: rgba(255, 255, 255, 0.18);
+  --shadow-soft: 0 16px 38px rgba(3, 3, 8, 0.48);
+  --shadow-medium: 0 34px 72px rgba(0, 0, 0, 0.64);
+}
+
+*,
+*::before,
+*::after {
+  @apply box-border border-border;
+}
+
+html,
+body {
+  @apply h-full;
+}
+
+html {
+  @apply overflow-hidden;
+}
+
+body {
+  @apply m-0 h-full min-h-screen overflow-hidden bg-[var(--app-bg)] text-[var(--text-primary)] antialiased transition-colors duration-300 ease-in-out;
+}
+
+body.region-capture-overlay {
+  background: transparent;
+  background-color: transparent;
+  cursor: crosshair;
+  transition: none !important;
+}

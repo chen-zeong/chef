@@ -182,6 +182,7 @@ const navTitleVariants = {
   }
 };
 
+
 const sidebarVariants: Variants = {
   expanded: {
     width: 216,
@@ -199,8 +200,8 @@ const sidebarVariants: Variants = {
   }
 };
 
-const MotionButton = motion(Button);
-const MotionCard = motion(Card);
+const MotionButton = motion.create(Button);
+const MotionCard = motion.create(Card);
 
 export default function App() {
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -549,12 +550,21 @@ export default function App() {
                 data-tauri-drag-region="false"
               >
                 {isHomeActive && (
-                  <motion.span
-                    layoutId="nav-item-highlight"
-                    className="nav__item-highlight"
-                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                    aria-hidden
-                  />
+                  <>
+                    <motion.span
+                      layoutId="nav-item-highlight"
+                      className="nav__item-highlight"
+                      transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                      aria-hidden
+                    />
+                    <motion.span
+                      className="nav__item-ripple"
+                      aria-hidden
+                      initial={{ opacity: 0.45, scale: 0.86 }}
+                      animate={{ opacity: 0, scale: 1.25 }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                    />
+                  </>
                 )}
                 <motion.span
                   className="nav__icon"
@@ -600,12 +610,21 @@ export default function App() {
                     data-tauri-drag-region="false"
                   >
                     {isActive && (
-                      <motion.span
-                        layoutId="nav-item-highlight"
-                        className="nav__item-highlight"
-                        transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                        aria-hidden
-                      />
+                      <>
+                        <motion.span
+                          layoutId="nav-item-highlight"
+                          className="nav__item-highlight"
+                          transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                          aria-hidden
+                        />
+                        <motion.span
+                          className="nav__item-ripple"
+                          aria-hidden
+                          initial={{ opacity: 0.45, scale: 0.86 }}
+                          animate={{ opacity: 0, scale: 1.25 }}
+                          transition={{ duration: 0.5, ease: "easeOut" }}
+                        />
+                      </>
                     )}
                     <motion.span
                       className="nav__icon"
