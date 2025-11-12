@@ -1,5 +1,5 @@
 export const PANEL_CONTAINER =
-  "flex flex-col gap-6 rounded-2xl border border-[color:var(--panel-border)] bg-[var(--panel-bg)] p-6 shadow-[var(--shadow-soft)]";
+  "flex flex-col gap-6 rounded-2xl bg-[var(--panel-bg)] p-6 shadow-[var(--shadow-soft)]";
 export const PANEL_HEADER =
   "flex flex-col gap-1 md:flex-row md:items-start md:justify-between";
 export const PANEL_TITLE = "text-lg font-semibold text-[var(--text-primary)]";

@@ -41,6 +41,30 @@ export const modules: ModuleMeta[] = [
         status: "ready"
       },
       {
+        id: "radix-converter",
+        name: "进制转换",
+        description: "选择进制后快速互转并复制结果。",
+        status: "ready"
+      },
+      {
+        id: "time-converter",
+        name: "时间转换",
+        description: "在 Unix 时间戳、本地/UTC 时间间转换。",
+        status: "ready"
+      }
+    ]
+  },
+  {
+    id: "encoding",
+    name: "编码工具",
+    description: "聚合常见哈希、加解密与编码功能，聚焦安全可靠输出。",
+    icon: "Shield",
+    accent: {
+      from: "rgba(255, 186, 186, 0.35)",
+      to: "rgba(255, 231, 186, 0.3)"
+    },
+    tools: [
+      {
         id: "md5",
         name: "MD5 摘要",
         description: "生成字符串的 MD5 哈希值。",
@@ -68,18 +92,6 @@ export const modules: ModuleMeta[] = [
         id: "url-codec",
         name: "URL 编解码",
         description: "快速进行 URL 编码与解码。",
-        status: "ready"
-      },
-      {
-        id: "radix-converter",
-        name: "进制转换",
-        description: "选择进制后快速互转并复制结果。",
-        status: "ready"
-      },
-      {
-        id: "time-converter",
-        name: "时间转换",
-        description: "在 Unix 时间戳、本地/UTC 时间间转换。",
         status: "ready"
       }
     ]
