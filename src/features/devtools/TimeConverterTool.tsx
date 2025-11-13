@@ -1,38 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import {
   BUTTON_GHOST,
-  BUTTON_TOGGLE,
-  BUTTON_TOGGLE_ACTIVE,
-  CHIP_ACTIVE,
-  CHIP_BASE,
   PANEL_BLOCK,
-  PANEL_BUTTON_GROUP,
-  PANEL_DESCRIPTION,
   PANEL_ERROR,
-  PANEL_FOOTER,
   PANEL_GRID,
   PANEL_HEADER,
-  PANEL_INPUT,
   PANEL_LABEL,
   PANEL_MUTED,
   PANEL_RESULT,
-  PANEL_TEXTAREA,
   PANEL_TITLE
 } from "../../ui/styles";
 
-type TimeMode = "timestamp-to-date" | "date-to-timestamp";
 type TimestampUnit = "seconds" | "milliseconds";
-
-const TIMESTAMP_UNITS: { value: TimestampUnit; label: string }[] = [
-  { value: "seconds", label: "秒" },
-  { value: "milliseconds", label: "毫秒" }
-];
 
 type TimeConversion = {
   details: TimeConversionDetails | null;
   error: string | null;
+  interpretation: Interpretation | null;
 };
 
 type TimeConversionDetails = {
@@ -41,22 +27,19 @@ type TimeConversionDetails = {
   local: string;
   utc: string;
   iso: string;
-  relative: string;
 };
 
-export function TimeConverterTool() {
-  const [mode, setMode] = useState<TimeMode>("timestamp-to-date");
-  const [timestampUnit, setTimestampUnit] = useState<TimestampUnit>("seconds");
-  const [timestampInput, setTimestampInput] = useState(() =>
-    Math.trunc(Date.now() / 1000).toString()
-  );
-  const [datetimeInput, setDatetimeInput] = useState(() => formatDateInputValue(new Date()));
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+type Interpretation =
+  | { kind: "timestamp"; unit: TimestampUnit }
+  | { kind: "date" };
 
-  const conversion = useMemo(
-    () => buildTimeConversion(mode, timestampInput, timestampUnit, datetimeInput),
-    [mode, timestampInput, timestampUnit, datetimeInput]
-  );
+export function TimeConverterTool() {
+  const [inputValue, setInputValue] = useState(() => Math.trunc(Date.now() / 1000).toString());
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const resultContainerRef = useRef<HTMLDivElement | null>(null);
+  const [resultsMaxHeight, setResultsMaxHeight] = useState<number | null>(null);
+
+  const conversion = useMemo(() => buildTimeConversion(inputValue), [inputValue]);
 
   useEffect(() => {
     if (!copiedKey) {
@@ -66,39 +49,29 @@ export function TimeConverterTool() {
     return () => window.clearTimeout(timer);
   }, [copiedKey]);
 
-  const handleModeChange = (nextMode: TimeMode) => {
-    if (mode === nextMode) {
-      return;
-    }
-    if (nextMode === "date-to-timestamp") {
-      try {
-        const milliseconds = parseTimestampInput(timestampInput, timestampUnit);
-        setDatetimeInput(formatDateInputValue(new Date(milliseconds)));
-      } catch {
-        // ignore sync errors
+  useEffect(() => {
+    const updateMaxHeight = () => {
+      if (!resultContainerRef.current) {
+        return;
       }
-    } else {
-      try {
-        const milliseconds = parseDateInput(datetimeInput);
-        const value =
-          timestampUnit === "seconds"
-            ? Math.trunc(milliseconds / 1000).toString()
-            : Math.trunc(milliseconds).toString();
-        setTimestampInput(value);
-      } catch {
-        // ignore sync errors
-      }
-    }
-    setMode(nextMode);
+      const rect = resultContainerRef.current.getBoundingClientRect();
+      const available = window.innerHeight - rect.top - 40;
+      setResultsMaxHeight(Math.max(220, available));
+    };
+    updateMaxHeight();
+    window.addEventListener("resize", updateMaxHeight);
+    return () => window.removeEventListener("resize", updateMaxHeight);
+  }, []);
+
+  const handleFillTimestamp = () => {
+    setInputValue(Math.trunc(Date.now() / 1000).toString());
   };
 
-  const handleFillNow = () => {
-    const now = Date.now();
-    setTimestampInput(
-      timestampUnit === "seconds" ? Math.trunc(now / 1000).toString() : Math.trunc(now).toString()
-    );
-    setDatetimeInput(formatDateInputValue(new Date(now)));
+  const handleFillDate = () => {
+    setInputValue(formatDateInputValue(new Date()));
   };
+
+  const handleClear = () => setInputValue("");
 
   const handleCopy = async (value: string, key: string) => {
     if (!value) {
@@ -138,121 +111,62 @@ export function TimeConverterTool() {
           label: "ISO 8601",
           value: conversion.details.iso,
           key: "iso"
-        },
-        {
-          label: "相对现在",
-          value: conversion.details.relative,
-          key: "relative"
         }
       ]
     : [];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
       <header className={PANEL_HEADER}>
         <div>
+          <p className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">Time</p>
           <h3 className={PANEL_TITLE}>时间转换</h3>
-          <p className={PANEL_DESCRIPTION}>
-            在 Unix 时间戳、本地时间、UTC 与 ISO8601 之间切换，支持秒 / 毫秒输入。
-          </p>
         </div>
-        <motion.div className={PANEL_BUTTON_GROUP} layout>
-          <motion.button
-            type="button"
-            className={clsx(BUTTON_TOGGLE, mode === "timestamp-to-date" && BUTTON_TOGGLE_ACTIVE)}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => handleModeChange("timestamp-to-date")}
-          >
-            时间戳 → 日期
+        <div className="flex flex-wrap items-center gap-2">
+          <motion.button type="button" className={BUTTON_GHOST} whileTap={{ scale: 0.95 }} onClick={handleFillTimestamp}>
+            使用当前时间戳
           </motion.button>
-          <motion.button
-            type="button"
-            className={clsx(BUTTON_TOGGLE, mode === "date-to-timestamp" && BUTTON_TOGGLE_ACTIVE)}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => handleModeChange("date-to-timestamp")}
-          >
-            日期 → 时间戳
+          <motion.button type="button" className={BUTTON_GHOST} whileTap={{ scale: 0.95 }} onClick={handleFillDate}>
+            使用当前日期
           </motion.button>
-        </motion.div>
+          <motion.button type="button" className={BUTTON_GHOST} whileTap={{ scale: 0.95 }} onClick={handleClear}>
+            清空输入
+          </motion.button>
+        </div>
       </header>
 
-      <div className={PANEL_GRID}>
+      <div className={clsx(PANEL_GRID, "min-h-0")}>
         <div className={PANEL_BLOCK}>
-          {mode === "timestamp-to-date" ? (
-            <>
-              <label className={PANEL_LABEL}>Unix 时间戳</label>
-              <input
-                className={clsx(PANEL_INPUT, "font-mono")}
-                spellCheck={false}
-                inputMode="numeric"
-                value={timestampInput}
-                onChange={(event) => setTimestampInput(event.target.value)}
-                placeholder="例如 1712554287 或 1712554287123"
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                {TIMESTAMP_UNITS.map((unit) => (
-                  <motion.button
-                    key={unit.value}
-                    type="button"
-                    className={clsx(CHIP_BASE, timestampUnit === unit.value && CHIP_ACTIVE)}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setTimestampUnit(unit.value)}
-                  >
-                    {unit.label}
-                  </motion.button>
-                ))}
-                <motion.button
-                  type="button"
-                  className={BUTTON_GHOST}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleFillNow}
-                >
-                  填入当前
-                </motion.button>
-              </div>
-              <p className="text-xs text-[var(--text-tertiary)]">
-                支持秒或毫秒精度，支持小数（会保留至毫秒）。
-              </p>
-            </>
-          ) : (
-            <>
-              <label className={PANEL_LABEL}>日期 / 时间字符串</label>
-              <textarea
-                className={clsx(PANEL_TEXTAREA, "min-h-[140px] font-mono text-sm")}
-                spellCheck={false}
-                value={datetimeInput}
-                onChange={(event) => setDatetimeInput(event.target.value)}
-                placeholder={"2025-01-01 12:00:00\n2025-01-01T12:00:00Z\nWed, 01 Jan 2025 12:00:00 GMT"}
-              />
-              <motion.button
-                type="button"
-                className={BUTTON_GHOST}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleFillNow}
-              >
-                填入当前
-              </motion.button>
-              <p className="text-xs text-[var(--text-tertiary)]">
-                支持本地格式（YYYY-MM-DD HH:mm:ss）、ISO8601、RFC3339 以及浏览器原生 Date 可解析的字符串。
-              </p>
-            </>
-          )}
+          <label className={PANEL_LABEL}>输入任意时间戳或日期</label>
+          <textarea
+            className="scroll-area min-h-[160px] resize-none rounded-md border border-[rgba(15,23,42,0.08)] bg-[#fafafa] px-4 py-3 font-mono text-sm text-[var(--text-primary)] leading-relaxed outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/25"
+            spellCheck={false}
+            value={inputValue}
+            onChange={(event) => setInputValue(event.target.value)}
+            placeholder={`1712554287\n1712554287123\n2025-01-01 12:00:00\n2025-01-01T12:00:00Z`}
+          />
         </div>
 
-        <div className={PANEL_BLOCK}>
+        <div className={clsx(PANEL_BLOCK, "min-h-0")}>
           <label className={PANEL_LABEL}>结果明细</label>
           {rows.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              {rows.map((row) => (
-                <ResultRow
-                  key={row.key}
-                  label={row.label}
-                  value={row.value}
-                  copyKey={row.key}
-                  copiedKey={copiedKey}
-                  onCopy={handleCopy}
-                />
-              ))}
+            <div
+              ref={resultContainerRef}
+              className="scroll-area flex-1 min-h-[220px] overflow-auto pr-2"
+              style={resultsMaxHeight ? { maxHeight: `${resultsMaxHeight}px` } : undefined}
+            >
+              <div className="flex flex-col gap-3">
+                {rows.map((row) => (
+                  <ResultRow
+                    key={row.key}
+                    label={row.label}
+                    value={row.value}
+                    copyKey={row.key}
+                    copiedKey={copiedKey}
+                    onCopy={handleCopy}
+                  />
+                ))}
+              </div>
             </div>
           ) : (
             <div className={clsx(PANEL_RESULT, "text-sm", PANEL_MUTED)}>
@@ -261,12 +175,7 @@ export function TimeConverterTool() {
           )}
         </div>
       </div>
-
       {conversion.error && <div className={PANEL_ERROR}>{conversion.error}</div>}
-
-      <footer className={PANEL_FOOTER}>
-        <span>解析基于浏览器 Date 能力 · 秒与毫秒不会自动换算，请注意单位选择。</span>
-      </footer>
     </div>
   );
 }
@@ -299,17 +208,9 @@ function ResultRow({ label, value, copyKey, copiedKey, onCopy }: ResultRowProps)
   );
 }
 
-function buildTimeConversion(
-  mode: TimeMode,
-  timestampInput: string,
-  timestampUnit: TimestampUnit,
-  datetimeInput: string
-): TimeConversion {
+function buildTimeConversion(inputValue: string): TimeConversion {
   try {
-    const milliseconds =
-      mode === "timestamp-to-date"
-        ? parseTimestampInput(timestampInput, timestampUnit)
-        : parseDateInput(datetimeInput);
+    const { milliseconds, interpretation } = interpretInput(inputValue);
     const date = new Date(milliseconds);
     if (Number.isNaN(date.getTime())) {
       throw new Error("无法解析输入的时间。");
@@ -320,45 +221,44 @@ function buildTimeConversion(
         unixMilliseconds: Math.trunc(milliseconds).toString(),
         local: formatLocalDate(date),
         utc: formatUtcDate(date),
-        iso: date.toISOString(),
-        relative: formatRelative(milliseconds)
+        iso: date.toISOString()
       },
-      error: null
+      error: null,
+      interpretation
     };
   } catch (error) {
     return {
       details: null,
-      error: error instanceof Error ? error.message : "转换失败，请检查输入格式。"
+      error: error instanceof Error ? error.message : "转换失败，请检查输入格式。",
+      interpretation: null
     };
   }
 }
 
-function parseTimestampInput(value: string, unit: TimestampUnit): number {
+function interpretInput(value: string): { milliseconds: number; interpretation: Interpretation } {
   const trimmed = value.trim();
   if (!trimmed) {
-    throw new Error("请输入时间戳。");
+    throw new Error("请输入时间戳或日期。");
   }
-  const normalized = trimmed.replace(/_/g, "");
-  const numeric = Number(normalized);
-  if (!Number.isFinite(numeric)) {
-    throw new Error("时间戳只能包含数字。");
-  }
-  const milliseconds = unit === "seconds" ? numeric * 1000 : numeric;
-  return milliseconds;
-}
 
-function parseDateInput(value: string): number {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    throw new Error("请输入日期或时间字符串。");
+  const normalizedNumeric = trimmed.replace(/[\s_,]/g, "");
+  if (/^-?\d+(\.\d+)?$/.test(normalizedNumeric)) {
+    const numeric = Number(normalizedNumeric);
+    if (!Number.isFinite(numeric)) {
+      throw new Error("时间戳只能包含数字。");
+    }
+    const inferredUnit: TimestampUnit = Math.abs(numeric) >= 1e12 ? "milliseconds" : "seconds";
+    const milliseconds = inferredUnit === "seconds" ? numeric * 1000 : numeric;
+    return { milliseconds, interpretation: { kind: "timestamp", unit: inferredUnit } };
   }
-  const normalized =
-    trimmed.includes("T") || trimmed.includes("Z") ? trimmed : trimmed.replace(" ", "T");
-  const date = new Date(normalized);
+
+  const normalizedDate =
+    trimmed.includes("T") || trimmed.includes("Z") ? trimmed : trimmed.replace(/\s+/, "T");
+  const date = new Date(normalizedDate);
   if (Number.isNaN(date.getTime())) {
-    throw new Error("无法解析输入的日期，请使用 ISO8601 或 YYYY-MM-DD HH:mm:ss 格式。");
+    throw new Error("无法解析输入，请输入纯数字时间戳或常见日期字符串。");
   }
-  return date.getTime();
+  return { milliseconds: date.getTime(), interpretation: { kind: "date" } };
 }
 
 function formatDateInputValue(date: Date): string {
@@ -384,24 +284,6 @@ function formatOffset(date: Date): string {
   const hours = Math.floor(absolute / 60);
   const minutes = absolute % 60;
   return `${sign}${pad(hours)}:${pad(minutes)}`;
-}
-
-function formatRelative(targetMilliseconds: number): string {
-  const diff = targetMilliseconds - Date.now();
-  if (Math.abs(diff) < 1000) {
-    return "就是此刻";
-  }
-  const units = [
-    { label: "年", value: 1000 * 60 * 60 * 24 * 365 },
-    { label: "月", value: 1000 * 60 * 60 * 24 * 30 },
-    { label: "天", value: 1000 * 60 * 60 * 24 },
-    { label: "小时", value: 1000 * 60 * 60 },
-    { label: "分钟", value: 1000 * 60 },
-    { label: "秒", value: 1000 }
-  ];
-  const unit = units.find((item) => Math.abs(diff) >= item.value) ?? units[units.length - 1];
-  const amount = Math.floor(Math.abs(diff) / unit.value);
-  return diff >= 0 ? `还有 ${amount} ${unit.label}` : `已过去 ${amount} ${unit.label}`;
 }
 
 function formatDateParts(date: Date): string {

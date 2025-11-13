@@ -4,13 +4,32 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Chef 局域网分享</title>
+    <!-- 引入 Inter 字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        --accent: __ACCENT__;
-        --bg: linear-gradient(135deg, #e7eeff, #fdf4ff);
-        --panel: rgba(255, 255, 255, 0.96);
-        font-family: "SF Pro Display", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        color: #0f172a;
+        /* --accent: __ACCENT__; */
+        /* 使用一个更现代的紫蓝色调作为默认 accent */
+        --accent: #6f55f2;
+        /* 更新背景为更有活力的渐变 */
+        --bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        /* 增加透明度并为毛玻璃效果做准备 */
+        --panel: rgba(255, 255, 255, 0.85);
+        --text-primary: #0f172a;
+        --text-secondary: #334155;
+        --text-tertiary: #64748b;
+        /* 为按钮光晕效果准备 */
+        --accent-glow: rgba(111, 85, 242, 0.4);
+
+        /* 优先使用 Inter 字体 */
+        font-family: "Inter", "SF Pro Display", -apple-system,
+          BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text-primary);
       }
       * {
         box-sizing: border-box;
@@ -27,21 +46,33 @@
       main {
         width: min(980px, 100%);
         background: var(--panel);
+        /* 增加毛玻璃效果 */
+        backdrop-filter: blur(16px);
         border-radius: 36px;
         padding: clamp(20px, 4vw, 44px);
-        box-shadow: 0 35px 120px rgba(15, 23, 42, 0.18);
+        /* 更新为更柔和的阴影 */
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1),
+          0 10px 20px -10px rgba(0, 0, 0, 0.08);
         position: relative;
         overflow: hidden;
+        /* 添加一个微妙的边框来强化玻璃感 */
+        border: 1px solid rgba(255, 255, 255, 0.2);
       }
+      /* 更新装饰性光晕的颜色 */
       main::after {
         content: "";
         position: absolute;
         width: 320px;
         height: 320px;
-        background: radial-gradient(circle, rgba(59, 130, 246, 0.25), transparent 60%);
+        background: radial-gradient(
+          circle,
+          var(--accent, rgba(121, 84, 234, 0.25)),
+          transparent 60%
+        );
         top: -140px;
         right: -120px;
-        filter: blur(5px);
+        filter: blur(10px);
+        opacity: 0.8;
       }
       .content {
         position: relative;
@@ -66,8 +97,9 @@
         align-self: flex-start;
         padding: 6px 14px;
         border-radius: 999px;
-        background: rgba(59, 130, 246, 0.15);
-        color: rgba(15, 23, 42, 0.75);
+        /* 更新 tag 颜色 */
+        background: rgba(111, 85, 242, 0.15);
+        color: var(--accent, #6f55f2);
         font-size: 0.75rem;
         font-weight: 600;
         letter-spacing: 0.18em;
@@ -78,15 +110,18 @@
       }
       .hero__desc {
         margin: 0;
-        color: rgba(15, 23, 42, 0.65);
+        color: var(--text-secondary);
         font-size: 0.98rem;
+        line-height: 1.6;
       }
       .hero__stats {
         flex: 0 0 260px;
         border-radius: 28px;
         padding: 18px;
-        background: linear-gradient(160deg, rgba(59, 130, 246, 0.18), rgba(255, 255, 255, 0.65));
-        backdrop-filter: blur(6px);
+        /* 更新为玻璃质感 */
+        background: rgba(255, 255, 255, 0.3);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.4);
         display: grid;
         gap: 14px;
       }
@@ -99,17 +134,18 @@
         font-size: 0.78rem;
         text-transform: uppercase;
         letter-spacing: 0.26em;
-        color: rgba(15, 23, 42, 0.7);
+        color: var(--text-tertiary);
       }
       .stat-line span:last-child {
         font-size: 1.25rem;
         font-weight: 700;
-        color: #0f172a;
+        color: var(--text-primary);
       }
       .file-board {
         border-radius: 32px;
-        border: 1px solid rgba(148, 163, 184, 0.25);
-        background: rgba(248, 250, 252, 0.92);
+        /* 移除边框，使用背景色区分 */
+        border: none;
+        background: rgba(248, 250, 252, 0.8);
         padding: clamp(18px, 3vw, 28px);
         display: flex;
         flex-direction: column;
@@ -122,9 +158,19 @@
         align-items: center;
         padding: 16px 20px;
         border-radius: 24px;
-        background: white;
-        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.05);
-        border: 1px solid rgba(15, 23, 42, 0.04);
+        background: rgba(255, 255, 255, 0.9);
+        /* 更新为更柔和的阴影 */
+        box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.04),
+          0 4px 10px -4px rgba(15, 23, 42, 0.03);
+        /* 移除旧边框，换个更亮的 */
+        border: 1px solid rgba(255, 255, 255, 1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      /* 添加卡片悬停效果 */
+      .file-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 30px -5px rgba(15, 23, 42, 0.07),
+          0 6px 15px -4px rgba(15, 23, 42, 0.05);
       }
       .file-card__main {
         display: flex;
@@ -136,28 +182,31 @@
         width: 48px;
         height: 48px;
         border-radius: 16px;
-        background: rgba(59, 130, 246, 0.14);
+        /* 更新 icon 背景色 */
+        background: rgba(111, 85, 242, 0.1);
+        color: var(--accent, #6f55f2);
         display: inline-flex;
         align-items: center;
         justify-content: center;
         font-size: 1.1rem;
+        flex-shrink: 0;
       }
       .file-name {
         margin: 0;
         font-weight: 600;
         font-size: 1rem;
-        color: #0f172a;
+        color: var(--text-primary);
         word-break: break-word;
       }
       .file-desc {
         margin: 2px 0 0;
         font-size: 0.85rem;
-        color: rgba(71, 85, 105, 0.9);
+        color: var(--text-secondary);
       }
       .file-meta {
         text-align: right;
         font-size: 0.84rem;
-        color: rgba(71, 85, 105, 0.8);
+        color: var(--text-tertiary);
         white-space: nowrap;
       }
       .file-btn {
@@ -170,21 +219,27 @@
         font-weight: 600;
         font-size: 0.85rem;
         color: white;
-        background: linear-gradient(120deg, var(--accent), rgba(59, 130, 246, 0.9));
-        box-shadow: 0 16px 30px rgba(37, 99, 235, 0.3);
+        /* 更新按钮渐变和阴影 */
+        background: linear-gradient(120deg, var(--accent, #5e5df0), #764ba2);
+        box-shadow: 0 10px 20px -5px var(--accent-glow);
         transition: transform 0.2s ease, box-shadow 0.2s ease;
       }
       .file-btn__icon {
         font-size: 0.95rem;
       }
+      /* 增加按钮悬停效果 */
+      .file-btn:hover {
+        transform: translateY(-2px) scale(1.03);
+        box-shadow: 0 14px 25px -5px var(--accent-glow);
+      }
       .file-btn:active {
-        transform: translateY(1px);
-        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.25);
+        transform: translateY(0px) scale(1);
+        box-shadow: 0 8px 18px -5px var(--accent-glow);
       }
       .footer {
         text-align: center;
         font-size: 0.78rem;
-        color: rgba(71, 85, 105, 0.85);
+        color: var(--text-secondary);
       }
       @media (max-width: 720px) {
         .hero {
@@ -192,6 +247,8 @@
         }
         .file-card {
           grid-template-columns: minmax(0, 1fr);
+          /* 在移动端增加卡片间距 */
+          gap: 12px;
         }
         .file-meta {
           text-align: left;
@@ -199,6 +256,7 @@
         .file-btn {
           width: 100%;
           justify-content: center;
+          padding: 12px 20px; /* 增大移动端点击区域 */
         }
       }
     </style>
@@ -210,7 +268,9 @@
           <div class="hero__text">
             <span class="hero__tag">CHEF LAN SHARE</span>
             <h1 class="hero__title">链接只在网络内部可见</h1>
-            <p class="hero__desc">由桌面端即时托管的分享页，关闭分享后即刻失效，可放心给同网段用户下载。</p>
+            <p class="hero__desc">
+              由桌面端即时托管的分享页，关闭分享后即刻失效，可放心给同网段用户下载。
+            </p>
           </div>
           <div class="hero__stats">
             <div class="stat-line">
@@ -228,9 +288,40 @@
           </div>
         </section>
         <section class="file-board">
-          __FILE_LIST__
+          <!-- 这是一个文件卡片的示例，实际内容会被替换 -->
+          <div class="file-card">
+            <div class="file-card__main">
+              <span class="file-card__icon">📄</span>
+              <div>
+                <h2 class="file-name">example-document.pdf</h2>
+                <p class="file-desc">一个示例文件</p>
+              </div>
+            </div>
+            <span class="file-meta">1.2 MB</span>
+            <a href="#" class="file-btn">
+              <span class="file-btn__icon">⬇️</span>
+              <span>下载</span>
+            </a>
+          </div>
+          <div class="file-card">
+            <div class="file-card__main">
+              <span class="file-card__icon">📦</span>
+              <div>
+                <h2 class="file-name">project-archive.zip</h2>
+                <p class="file-desc">项目压缩包</p>
+              </div>
+            </div>
+            <span class="file-meta">104.5 MB</span>
+            <a href="#" class="file-btn">
+              <span class="file-btn__icon">⬇️</span>
+              <span>下载</span>
+            </a>
+          </div>
+          <!-- __FILE_LIST__ 将会替换这里 -->
         </section>
-        <p class="footer">下载完成即可关闭页面，重新分享请回到桌面端点击“结束分享”后重新生成。</p>
+        <p class="footer">
+          下载完成即可关闭页面，重新分享请回到桌面端点击“结束分享”后重新生成。
+        </p>
       </div>
     </main>
   </body>

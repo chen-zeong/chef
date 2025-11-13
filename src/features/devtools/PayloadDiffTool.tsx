@@ -5,13 +5,10 @@ import {
   BUTTON_GHOST,
   BUTTON_TOGGLE,
   BUTTON_TOGGLE_ACTIVE,
-  CHIP_ACTIVE,
-  CHIP_BASE,
   PANEL_BLOCK,
   PANEL_GRID,
   PANEL_HEADER,
   PANEL_LABEL,
-  PANEL_TEXTAREA,
   PANEL_TITLE
 } from "../../ui/styles";
 
@@ -25,12 +22,6 @@ type DiffRow = {
   rightValue: string | null;
   status: DiffStatus;
 };
-
-const payloadOptions: { value: PayloadType; label: string }[] = [
-  { value: "url", label: "URL 参数" },
-  { value: "cookie", label: "Cookie" },
-  { value: "header", label: "Header" }
-];
 
 const examplePayloads: Record<PayloadType, { left: string; right: string }> = {
   url: {
@@ -47,53 +38,83 @@ const examplePayloads: Record<PayloadType, { left: string; right: string }> = {
   }
 };
 
-const statusMeta: Record<DiffStatus, { label: string; row: string; badge: string }> = {
+const STATUS_BADGE_BASE =
+  "inline-flex items-center rounded-full border px-2 py-0.5 text-[0.7rem] font-medium";
+
+const TEXTAREA_CLASS =
+  "scroll-area min-h-[165px] w-full resize-none rounded-md border border-[rgba(15,23,42,0.08)] bg-[#fafafa] px-4 py-3 font-mono text-sm text-[var(--text-primary)] leading-relaxed shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/25 focus-visible:outline-none whitespace-pre-wrap break-words overflow-auto";
+
+type StatusMeta = {
+  label: string;
+  accent: string;
+  badgeBg: string;
+  badgeBorder: string;
+  badgeText: string;
+  valueBg: string;
+};
+
+const statusMeta: Record<DiffStatus, StatusMeta> = {
   match: {
     label: "一致",
-    row: "border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)]",
-    badge: "text-[var(--text-tertiary)]"
+    accent: "rgba(148,163,184,0.5)",
+    badgeBg: "rgba(241,245,249,1)",
+    badgeBorder: "rgba(148,163,184,0.45)",
+    badgeText: "rgba(71,85,105,0.95)",
+    valueBg: "#ffffff"
   },
   diff: {
     label: "不同",
-    row: "border-[rgba(234,179,8,0.5)] bg-[rgba(253,230,138,0.25)] shadow-[0_10px_30px_rgba(255,196,87,0.2)]",
-    badge: "text-[rgba(217,119,6,0.95)]"
+    accent: "rgba(37,99,235,0.8)",
+    badgeBg: "rgba(219,234,254,1)",
+    badgeBorder: "rgba(59,130,246,0.45)",
+    badgeText: "rgba(30,64,175,0.95)",
+    valueBg: "#f1f6ff"
   },
   "missing-left": {
-    label: "A 缺失",
-    row: "border-[rgba(248,113,113,0.45)] bg-[rgba(254,226,226,0.6)]",
-    badge: "text-[var(--negative)]"
+    label: "缺失",
+    accent: "rgba(248,113,113,0.8)",
+    badgeBg: "rgba(254,226,226,1)",
+    badgeBorder: "rgba(248,113,113,0.5)",
+    badgeText: "rgba(153,27,27,0.95)",
+    valueBg: "#fff6f6"
   },
   "missing-right": {
-    label: "B 缺失",
-    row: "border-[rgba(59,130,246,0.5)] bg-[rgba(191,219,254,0.4)]",
-    badge: "text-[var(--accent)]"
+    label: "缺失",
+    accent: "rgba(248,113,113,0.8)",
+    badgeBg: "rgba(254,226,226,1)",
+    badgeBorder: "rgba(248,113,113,0.5)",
+    badgeText: "rgba(153,27,27,0.95)",
+    valueBg: "#fff6f6"
   }
 };
 
 export function PayloadDiffTool() {
-  const [payloadType, setPayloadType] = useState<PayloadType>("url");
   const [leftValue, setLeftValue] = useState(examplePayloads.url.left);
   const [rightValue, setRightValue] = useState(examplePayloads.url.right);
   const [hideMatches, setHideMatches] = useState(false);
 
+  const leftDetectedType = useMemo(() => detectPayloadType(leftValue), [leftValue]);
+  const rightDetectedType = useMemo(() => detectPayloadType(rightValue), [rightValue]);
+
   const leftPairs = useMemo(
-    () => parseKeyValuePairs(payloadType, leftValue),
-    [payloadType, leftValue]
+    () => parseKeyValuePairs(leftDetectedType, leftValue),
+    [leftDetectedType, leftValue]
   );
   const rightPairs = useMemo(
-    () => parseKeyValuePairs(payloadType, rightValue),
-    [payloadType, rightValue]
+    () => parseKeyValuePairs(rightDetectedType, rightValue),
+    [rightDetectedType, rightValue]
   );
 
-  const allRows = useMemo(() => buildDiffRows(leftPairs, rightPairs), [leftPairs, rightPairs]);
+  const allRows = useMemo(
+    () =>
+      buildDiffRows(leftPairs, rightPairs).sort((a, b) => {
+        const priority = { diff: 0, "missing-left": 0, "missing-right": 0, match: 1 } as const;
+        return priority[a.status] - priority[b.status] || a.key.localeCompare(b.key);
+      }),
+    [leftPairs, rightPairs]
+  );
   const visibleRows = hideMatches ? allRows.filter((row) => row.status !== "match") : allRows;
   const differenceCount = allRows.filter((row) => row.status !== "match").length;
-
-  const handleLoadExample = () => {
-    const sample = examplePayloads[payloadType];
-    setLeftValue(sample.left);
-    setRightValue(sample.right);
-  };
 
   const handleSwap = () => {
     setLeftValue((prevLeft) => {
@@ -103,24 +124,13 @@ export function PayloadDiffTool() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
       <header className={PANEL_HEADER}>
         <div>
           <p className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">Diff</p>
           <h3 className={PANEL_TITLE}>参数对比</h3>
-          <p className="text-sm text-[var(--text-secondary)]">
-            将 URL、Cookie、Header 解析成键值对，高亮差异并支持隐藏一致项。
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <motion.button
-            type="button"
-            className={BUTTON_GHOST}
-            whileTap={{ scale: 0.94 }}
-            onClick={handleLoadExample}
-          >
-            填充示例
-          </motion.button>
           <motion.button
             type="button"
             className={BUTTON_GHOST}
@@ -143,90 +153,84 @@ export function PayloadDiffTool() {
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {payloadOptions.map((option) => (
-          <motion.button
-            key={option.value}
-            type="button"
-            className={clsx(CHIP_BASE, payloadType === option.value && CHIP_ACTIVE)}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setPayloadType(option.value)}
-          >
-            {option.label}
-          </motion.button>
-        ))}
-        <motion.button
-          type="button"
-          className={clsx(BUTTON_TOGGLE, hideMatches && BUTTON_TOGGLE_ACTIVE, "max-w-[160px]")}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setHideMatches((prev) => !prev)}
-        >
-          {hideMatches ? "显示全部" : "隐藏相同项"}
-        </motion.button>
-      </div>
-
       <div className={PANEL_GRID}>
         <div className={PANEL_BLOCK}>
           <label className={PANEL_LABEL}>内容 A</label>
           <textarea
-            className={clsx(PANEL_TEXTAREA, "font-mono text-sm")}
+            className={TEXTAREA_CLASS}
             spellCheck={false}
-            placeholder="https://example.com?token=123&lang=zh"
+            placeholder="粘贴 URL / Cookie / Header，自动解析"
             value={leftValue}
             onChange={(event) => setLeftValue(event.target.value)}
           />
-          <span className="text-xs text-[var(--text-tertiary)]">
-            已解析 {Object.keys(leftPairs).length} 个字段
-          </span>
         </div>
         <div className={PANEL_BLOCK}>
           <label className={PANEL_LABEL}>内容 B</label>
           <textarea
-            className={clsx(PANEL_TEXTAREA, "font-mono text-sm")}
+            className={TEXTAREA_CLASS}
             spellCheck={false}
-            placeholder="token=123&amp;lang=en"
+            placeholder="粘贴 URL / Cookie / Header，自动解析"
             value={rightValue}
             onChange={(event) => setRightValue(event.target.value)}
           />
-          <span className="text-xs text-[var(--text-tertiary)]">
-            已解析 {Object.keys(rightPairs).length} 个字段
-          </span>
         </div>
       </div>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-[var(--text-secondary)]">
+      <section className="flex min-h-0 flex-1 flex-col gap-3 pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f5f5f5] px-3 py-2 text-sm text-[var(--text-secondary)]">
           <span>
             共 {allRows.length} 个键，{differenceCount} 处差异
             {hideMatches && ` · 当前显示 ${visibleRows.length} 项`}
           </span>
-          <span>类型：{payloadOptions.find((option) => option.value === payloadType)?.label}</span>
+          <motion.button
+            type="button"
+            className={clsx(BUTTON_TOGGLE, hideMatches && BUTTON_TOGGLE_ACTIVE, "max-w-[160px]")}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setHideMatches((prev) => !prev)}
+          >
+            {hideMatches ? "显示全部" : "隐藏相同项"}
+          </motion.button>
         </div>
-        <div className="grid gap-3">
+        <div className="scroll-area flex-1 min-h-0 overflow-auto pr-2">
           {visibleRows.length === 0 ? (
             <p className="rounded-xl border border-dashed border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-3 py-4 text-center text-sm text-[var(--text-tertiary)]">
               {allRows.length === 0 ? "暂无可解析的键值，请检查输入。" : "所有键值一致，棒极了！"}
             </p>
           ) : (
-            visibleRows.map((row) => {
-              const meta = statusMeta[row.status];
-              return (
-                <div
-                  key={row.key}
-                  className={clsx(
-                    "grid gap-3 rounded-2xl border px-4 py-3 transition-colors md:grid-cols-[160px,1fr,1fr]",
-                    meta.row
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2 md:flex-col md:items-start">
-                    <span className="font-mono text-sm text-[var(--text-primary)]">{row.key}</span>
-                    <span className={clsx("text-xs font-medium", meta.badge)}>{meta.label}</span>
+            <div className="grid gap-2">
+              {visibleRows.map((row) => {
+                const meta = statusMeta[row.status];
+                return (
+                  <div
+                    key={row.key}
+                    className={clsx(
+                      "group grid items-start gap-2 rounded-lg border border-[rgba(15,23,42,0.08)] bg-white px-3 py-2 text-[0.92rem] transition-colors md:grid-cols-[minmax(160px,0.8fr)_minmax(0,1fr)_minmax(0,1fr)]",
+                      "hover:border-[rgba(37,99,235,0.22)]"
+                    )}
+                    style={{
+                      borderLeftWidth: "4px",
+                      borderLeftColor: meta.accent
+                    }}
+                  >
+                    <div className="flex min-w-0 items-center justify-between gap-1.5 text-sm text-[var(--text-tertiary)]">
+                      <span className="truncate font-mono text-[var(--text-primary)]">{row.key}</span>
+                      <span
+                        className={clsx(STATUS_BADGE_BASE, "shrink-0")}
+                        style={{
+                          borderColor: meta.badgeBorder,
+                          background: meta.badgeBg,
+                          color: meta.badgeText
+                        }}
+                      >
+                        {meta.label}
+                      </span>
+                    </div>
+                    <DiffValue label="A" value={row.leftValue} status={row.status} meta={meta} />
+                    <DiffValue label="B" value={row.rightValue} status={row.status} meta={meta} />
                   </div>
-                  <DiffValue label="A" value={row.leftValue} status={row.status} />
-                  <DiffValue label="B" value={row.rightValue} status={row.status} />
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
       </section>
@@ -238,21 +242,25 @@ type ValueProps = {
   label: string;
   value: string | null;
   status: DiffStatus;
+  meta: StatusMeta;
 };
 
-function DiffValue({ label, value, status }: ValueProps) {
+function DiffValue({ label, value, status, meta }: ValueProps) {
   const isMissing =
     (status === "missing-left" && label === "A") ||
     (status === "missing-right" && label === "B");
   if (value === null || value === "") {
     return (
-      <div className="rounded-xl border border-dashed border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-3 py-2 text-sm text-[var(--text-tertiary)]">
+      <div className="rounded-md border border-dashed border-[rgba(148,163,184,0.45)] bg-white px-2 py-1 text-sm text-[var(--text-tertiary)]">
         {isMissing ? "未提供" : "空值"}
       </div>
     );
   }
   return (
-    <div className="rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] px-3 py-2 font-mono text-sm text-[var(--text-primary)]">
+    <div
+      className="rounded-md px-2 py-1 font-mono text-sm text-[var(--text-primary)]"
+      style={{ background: meta.valueBg }}
+    >
       {value}
     </div>
   );
@@ -276,6 +284,40 @@ function buildDiffRows(left: Record<string, string>, right: Record<string, strin
     }
     return { key, leftValue, rightValue, status };
   });
+}
+
+function detectPayloadType(raw: string): PayloadType {
+  const text = raw.trim();
+  if (!text) {
+    return "url";
+  }
+
+  const headerMatches = text.match(/^[A-Za-z0-9-]+:\s?.+/gm);
+  if (headerMatches && headerMatches.length >= 2) {
+    return "header";
+  }
+
+  const cookieSegments = text.split(/;|\n/).filter((segment) => segment.includes("=")).length;
+  if (text.includes(";") && cookieSegments >= 2) {
+    return "cookie";
+  }
+
+  const hasProtocol = /^https?:\/\//i.test(text);
+  const hasQuery = text.includes("?") && text.includes("=");
+  const ampersandPairs = text.includes("&") && text.includes("=");
+  if (hasProtocol || hasQuery || ampersandPairs) {
+    return "url";
+  }
+
+  if (headerMatches && headerMatches.length >= 1) {
+    return "header";
+  }
+
+  if (text.includes(";") && cookieSegments >= 1) {
+    return "cookie";
+  }
+
+  return "url";
 }
 
 function parseKeyValuePairs(type: PayloadType, raw: string): Record<string, string> {
