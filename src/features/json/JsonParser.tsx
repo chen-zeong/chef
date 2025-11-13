@@ -169,13 +169,13 @@ export function JsonParser() {
   }, [isSearchOpen]);
 
   return (
-    <div className="json-parser flex h-full min-h-0 flex-col gap-5 overflow-hidden rounded-2xl bg-[var(--panel-bg)] px-5 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+    <div className="json-parser flex h-full min-h-0 flex-col gap-5 overflow-hidden rounded-2xl bg-[var(--panel-bg)] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-[var(--text-tertiary)]">
             JSON
           </p>
-          <h3 className="text-xl font-semibold text-[var(--text-primary)]">结构化编辑</h3>
+          <h3 className="text-xl font-semibold text-[var(--text-primary)]">格式化编辑</h3>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -207,8 +207,16 @@ export function JsonParser() {
 
       <div className="grid flex-1 min-h-0 grid-cols-1 gap-5 overflow-hidden md:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)]">
         <section className="flex min-h-0 flex-1 flex-col gap-3 px-1">
-          <div className="flex flex-wrap items-center justify-between gap-2 pr-12 text-xs uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+          <div className="flex flex-wrap items-center justify-between gap-2 pr-0 text-xs uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
             <span>原始文本</span>
+            <div className="flex items-center gap-2 text-[0.7rem] normal-case tracking-[0.05em]">
+              <button
+                type="button"
+                className="rounded-md border border-[color:var(--border-subtle)] px-3 py-1 text-[0.72rem] font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:bg-[var(--surface-alt-bg)] hover:text-[var(--accent)]"
+              >
+                支持非标准 JSON
+              </button>
+            </div>
           </div>
           {error && (
             <div className="rounded-lg border border-[#fecaca] bg-[#fff1f2] px-3 py-2 text-sm text-[#b42318]">
@@ -216,7 +224,7 @@ export function JsonParser() {
             </div>
           )}
           <textarea
-            className="scroll-area flex-1 resize-none rounded-md bg-[var(--surface-alt-bg)] px-4 py-3 font-['JetBrains_Mono','SFMono-Regular',Menlo,monospace] text-[0.95rem] leading-[1.7] tracking-[0.01em] text-[var(--text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--accent)]/25 focus-visible:outline-none whitespace-pre-wrap break-words"
+            className="scroll-area flex-1 min-h-0 h-full resize-none rounded-md bg-[#fafafa] px-4 py-3 font-['JetBrains_Mono','SFMono-Regular',Menlo,monospace] text-[0.95rem] leading-[1.7] tracking-[0.01em] text-[var(--text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--accent)]/25 focus-visible:outline-none whitespace-pre-wrap break-words overflow-auto"
             spellCheck={false}
             value={input}
             onChange={(event) => {
@@ -249,7 +257,7 @@ export function JsonParser() {
               </button>
             </div>
           </div>
-          <div className="relative flex-1 overflow-hidden rounded-md bg-[var(--surface-alt-bg)] px-4 py-3">
+          <div className="relative flex-1 overflow-hidden rounded-md bg-[#fafafa] px-4 py-3">
             <button
               type="button"
               ref={searchButtonRef}
