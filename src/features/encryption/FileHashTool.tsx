@@ -1,13 +1,12 @@
-import { ChangeEvent, DragEvent, useId, useState } from "react";
+import { ChangeEvent, useId, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import CryptoJS from "crypto-js";
 import clsx from "clsx";
-import { Copy, Trash2, UploadCloud } from "lucide-react";
+import { Copy, Trash2 } from "lucide-react";
 import {
   BUTTON_GHOST,
   BUTTON_PRIMARY,
   PANEL_DESCRIPTION,
-  PANEL_FOOTER,
   PANEL_HEADER,
   PANEL_LABEL,
   PANEL_MUTED,
@@ -29,9 +28,9 @@ type HashEntry = {
 
 export function FileHashTool() {
   const [entries, setEntries] = useState<HashEntry[]>([]);
-  const [isDragging, setDragging] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const inputId = useId();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileInput = (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -77,30 +76,6 @@ export function FileHashTool() {
     });
   };
 
-  const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    setDragging(false);
-    const files = event.dataTransfer.files;
-    if (files && files.length > 0) {
-      processFiles(files);
-    }
-  };
-
-  const handleDragOver = (event: DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "copy";
-    if (!isDragging) {
-      setDragging(true);
-    }
-  };
-
-  const handleDragLeave = (event: DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    if (!event.currentTarget.contains(event.relatedTarget as Node)) {
-      setDragging(false);
-    }
-  };
-
   const handleCopy = async (value: string, key: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -126,75 +101,56 @@ export function FileHashTool() {
           <h3 className={PANEL_TITLE}>文件 Hash 计算器</h3>
           <p className={PANEL_DESCRIPTION}>支持同时生成单个或多个文件的 MD5 与 SHA256。</p>
         </div>
-        <motion.button
-          type="button"
-          className={BUTTON_GHOST}
-          disabled={!entries.length}
-          whileTap={{ scale: entries.length ? 0.95 : 1 }}
-          onClick={handleClearAll}
-        >
-          清空结果
-        </motion.button>
-      </header>
-
-      <div>
-        <label
-          htmlFor={inputId}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          className="flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-6 py-10 text-center transition hover:border-[var(--accent)] hover:bg-[rgba(37,99,235,0.04)]"
-          style={
-            isDragging
-              ? {
-                  borderColor: "var(--accent)",
-                  backgroundColor: "rgba(37,99,235,0.04)"
-                }
-              : undefined
-          }
-        >
-          <UploadCloud className="h-10 w-10 text-[var(--text-secondary)]" />
-          <div className="text-sm text-[var(--text-secondary)]">
-            拖拽文件到此处，或点击下方按钮选择文件。
-          </div>
-          <motion.span
+        <div className="flex flex-wrap items-center gap-2">
+          <motion.button
+            type="button"
             className={BUTTON_PRIMARY}
             whileTap={{ scale: 0.95 }}
+            onClick={() => fileInputRef.current?.click()}
           >
             选择文件
-          </motion.span>
-          <input
-            id={inputId}
-            type="file"
-            multiple
-            className="sr-only"
-            onChange={handleFileInput}
-          />
-          <p className="text-xs text-[var(--text-tertiary)]">文件在本地浏览器内处理，不会上传。</p>
-        </label>
-      </div>
+          </motion.button>
+          <motion.button
+            type="button"
+            className={BUTTON_GHOST}
+            disabled={!entries.length}
+            whileTap={{ scale: entries.length ? 0.95 : 1 }}
+            onClick={handleClearAll}
+          >
+            清空结果
+          </motion.button>
+        </div>
+      </header>
+
+      <input
+        id={inputId}
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={handleFileInput}
+      />
 
       {entries.length === 0 ? (
         <div className={PANEL_RESULT}>
           <span className={PANEL_MUTED}>添加文件后即可查看对应的 MD5 与 SHA256 结果。</span>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {entries.map((entry) => (
-            <HashResultCard
-              key={entry.id}
-              entry={entry}
-              copiedKey={copiedKey}
-              onCopy={handleCopy}
-              onRemove={handleRemove}
-            />
-          ))}
+        <div className="scroll-area max-h-[480px] overflow-auto pr-2">
+          <div className="flex flex-col gap-4">
+            {entries.map((entry) => (
+              <HashResultCard
+                key={entry.id}
+                entry={entry}
+                copiedKey={copiedKey}
+                onCopy={handleCopy}
+                onRemove={handleRemove}
+              />
+            ))}
+          </div>
         </div>
       )}
 
-      <footer className={PANEL_FOOTER}>
-        <span>基于 crypto-js 计算哈希值，仅用于完整性校验等非安全场景。</span>
-      </footer>
     </div>
   );
 }

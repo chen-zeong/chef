@@ -1,22 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import {
   BUTTON_GHOST,
   BUTTON_PRIMARY,
   PANEL_BLOCK,
-  PANEL_DESCRIPTION,
   PANEL_ERROR,
-  PANEL_FOOTER,
   PANEL_GRID,
   PANEL_HEADER,
   PANEL_INPUT,
   PANEL_LABEL,
   PANEL_MUTED,
-  PANEL_RESULT,
-  PANEL_TEXTAREA,
   PANEL_TITLE
 } from "../../ui/styles";
+import { BaseSelect as FancySelect } from "@/components/ui/base-select";
 
 const BASE_OPTIONS = Array.from({ length: 35 }, (_, index) => index + 2);
 const COMMON_BASES = [2, 8, 10, 16];
@@ -33,6 +30,12 @@ export function BaseConverterTool() {
   const [targetBase, setTargetBase] = useState(16);
   const [inputValue, setInputValue] = useState("1024");
   const [copied, setCopied] = useState(false);
+  const baseOptions = useMemo(
+    () => BASE_OPTIONS.map((base) => ({ value: base, label: describeBase(base) })),
+    []
+  );
+  const quickListRef = useRef<HTMLDivElement | null>(null);
+  const [quickListMaxHeight, setQuickListMaxHeight] = useState<number | null>(null);
 
   const conversion = useMemo(
     () => convertRadix(inputValue, inputBase, targetBase),
@@ -50,6 +53,20 @@ export function BaseConverterTool() {
   useEffect(() => {
     setCopied(false);
   }, [conversion.output]);
+
+  useEffect(() => {
+    const updateMaxHeight = () => {
+      if (!quickListRef.current) {
+        return;
+      }
+      const rect = quickListRef.current.getBoundingClientRect();
+      const available = window.innerHeight - rect.top - 40;
+      setQuickListMaxHeight(Math.max(220, available));
+    };
+    updateMaxHeight();
+    window.addEventListener("resize", updateMaxHeight);
+    return () => window.removeEventListener("resize", updateMaxHeight);
+  }, []);
 
   const handleSwapBases = () => {
     setInputBase(targetBase);
@@ -69,112 +86,129 @@ export function BaseConverterTool() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
       <header className={PANEL_HEADER}>
         <div>
+          <p className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">Radix</p>
           <h3 className={PANEL_TITLE}>进制转换</h3>
-          <p className={PANEL_DESCRIPTION}>
-            支持 2-36 进制互转，使用 BigInt 精确处理任意长度的整数。
-          </p>
         </div>
-        <motion.button
-          type="button"
-          className={BUTTON_GHOST}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setInputValue("")}
-        >
-          清空
-        </motion.button>
+        <div className="flex flex-wrap items-center gap-2">
+          <motion.button type="button" className={BUTTON_GHOST} whileTap={{ scale: 0.95 }} onClick={handleSwapBases}>
+            交换进制
+          </motion.button>
+          <motion.button type="button" className={BUTTON_GHOST} whileTap={{ scale: 0.95 }} onClick={() => setInputValue("")}>
+            清空
+          </motion.button>
+        </div>
       </header>
 
-      <div className={PANEL_GRID}>
-        <div className={PANEL_BLOCK}>
+      <div className={clsx(PANEL_GRID, "min-h-0 gap-6 md:grid-cols-[minmax(0,0.52fr)_minmax(0,0.48fr)]")}>
+        <div className={clsx(PANEL_BLOCK, "space-y-4")}>
           <label className={PANEL_LABEL}>原始数值</label>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FieldLabel>原始进制</FieldLabel>
-            <FieldLabel>目标进制</FieldLabel>
-            <select
-              className={clsx(PANEL_INPUT, "font-mono")}
-              value={inputBase}
-              onChange={(event) => setInputBase(Number(event.target.value))}
-            >
-              {BASE_OPTIONS.map((base) => (
-                <option key={base} value={base}>
-                  {describeBase(base)}
-                </option>
-              ))}
-            </select>
-            <select
-              className={clsx(PANEL_INPUT, "font-mono")}
-              value={targetBase}
-              onChange={(event) => setTargetBase(Number(event.target.value))}
-            >
-              {BASE_OPTIONS.map((base) => (
-                <option key={base} value={base}>
-                  {describeBase(base)}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <textarea
-            className={clsx(PANEL_TEXTAREA, "min-h-[100px] font-mono text-sm")}
+            className="scroll-area min-h-[140px] resize-none rounded-md border border-[rgba(15,23,42,0.08)] bg-[#fafafa] px-4 py-3 font-mono text-sm text-[var(--text-primary)] leading-relaxed outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/25"
             spellCheck={false}
             placeholder="请输入要转换的整数，例如 FF00 或 1101"
             value={inputValue}
             onChange={(event) => setInputValue(event.target.value)}
           />
-
-          <motion.button
-            type="button"
-            className={BUTTON_GHOST}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleSwapBases}
-          >
-            交换进制
-          </motion.button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <FieldLabel>原始进制</FieldLabel>
+              <FancySelect value={inputBase} onChange={setInputBase} options={baseOptions} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <FieldLabel>目标进制</FieldLabel>
+              <FancySelect value={targetBase} onChange={setTargetBase} options={baseOptions} />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-[var(--text-tertiary)]">常用原始进制：</span>
+            {COMMON_BASES.map((base) => (
+              <button
+                key={`input-${base}`}
+                type="button"
+                className={clsx(
+                  "rounded-full border px-2.5 py-1 text-xs transition",
+                  inputBase === base
+                    ? "border-[var(--accent)] bg-[rgba(37,99,235,0.08)] text-[var(--accent)]"
+                    : "border-[rgba(148,163,184,0.4)] text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                )}
+                onClick={() => setInputBase(base)}
+              >
+                {base}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-[var(--text-tertiary)]">常用目标进制：</span>
+            {COMMON_BASES.map((base) => (
+              <button
+                key={`target-${base}`}
+                type="button"
+                className={clsx(
+                  "rounded-full border px-2.5 py-1 text-xs transition",
+                  targetBase === base
+                    ? "border-[var(--accent)] bg-[rgba(37,99,235,0.08)] text-[var(--accent)]"
+                    : "border-[rgba(148,163,184,0.4)] text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                )}
+                onClick={() => setTargetBase(base)}
+              >
+                {base}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className={PANEL_BLOCK}>
+        <div className={clsx(PANEL_BLOCK, "min-h-0 space-y-4")}>
           <label className={PANEL_LABEL}>转换结果</label>
-          <div className={clsx(PANEL_RESULT, !conversion.output && PANEL_MUTED)}>
-            {conversion.output || "输出会显示在这里"}
+          <div className="flex flex-col gap-3">
+            <div
+              className={clsx(
+                "flex min-h-[72px] items-center rounded-xl border border-[rgba(15,23,42,0.1)] bg-white/90 px-4 py-3 font-mono text-base text-[var(--text-primary)]",
+                !conversion.output && PANEL_MUTED
+              )}
+            >
+              {conversion.output || "输出会显示在这里"}
+            </div>
+            <motion.button
+              type="button"
+              className={BUTTON_PRIMARY}
+              whileTap={{ scale: conversion.output ? 0.95 : 1 }}
+              disabled={!conversion.output}
+              onClick={handleCopy}
+            >
+              {copied ? "已复制" : "复制结果"}
+            </motion.button>
           </div>
-          <motion.button
-            type="button"
-            className={BUTTON_PRIMARY}
-            whileTap={{ scale: conversion.output ? 0.95 : 1 }}
-            disabled={!conversion.output}
-            onClick={handleCopy}
-          >
-            {copied ? "已复制" : "复制结果"}
-          </motion.button>
+
+          {!conversion.error && conversion.quickValues.length > 0 && (
+            <div
+              ref={quickListRef}
+              className="scroll-area flex-1 min-h-[220px] overflow-auto pr-2"
+              style={quickListMaxHeight ? { maxHeight: `${quickListMaxHeight}px` } : undefined}
+            >
+              <div className="grid gap-3">
+                {conversion.quickValues.map((item) => (
+                  <div
+                    key={item.base}
+                    className="flex flex-col gap-1 rounded-xl border border-[rgba(15,23,42,0.08)] bg-white px-3 py-2"
+                  >
+                    <span className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">
+                      {describeBase(item.base)}
+                    </span>
+                    <code className="text-sm font-mono text-[var(--text-primary)] break-all">
+                      {item.value}
+                    </code>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {!conversion.error && conversion.quickValues.length > 0 && (
-        <section className="grid gap-4 md:grid-cols-2">
-          {conversion.quickValues.map((item) => (
-            <div
-              key={item.base}
-              className="flex flex-col gap-1 rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] p-4 shadow-sm"
-            >
-              <span className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">
-                {describeBase(item.base)}
-              </span>
-              <code className="text-sm font-mono text-[var(--text-primary)] break-all">
-                {item.value}
-              </code>
-            </div>
-          ))}
-        </section>
-      )}
-
       {conversion.error && <div className={PANEL_ERROR}>{conversion.error}</div>}
-
-      <footer className={PANEL_FOOTER}>
-        <span>当前版本仅支持整数转换，可自动识别大小写 · 结果默认以大写显示</span>
-      </footer>
     </div>
   );
 }

@@ -1,94 +1,59 @@
-# Chef 桌面工具集
-
 <p align="center">
-  <img src="./images/logo_20251112_232138898.webp" alt="Chef Logo" width="120" />
+  <img src="images/logo.webp" alt="Chef 标志" width="120" />
 </p>
 
-> 一个基于 Tauri 2 + React / Next.js 的多功能桌面工具箱，聚焦开发者与操作者的高频场景。
+<h1 align="center">Chef 桌面工具箱</h1>
 
-## 项目简介
+Chef 是一个基于 **Tauri 2 + Next.js** 构建的多功能桌面工具集合。项目聚焦开发者与创作者的日常效率场景，将常用的生产力工具组合在一个统一的体验中。
 
-- **定位**：将常用的编码、系统调优、设计和效率工具整合在同一个桌面壳里，减少在不同网页或应用间来回切换的成本。
-- **形态**：前端界面由 Next.js 驱动，搭配 Tailwind CSS 与 Radix UI；通过 Tauri 提供跨平台桌面能力（窗口管理、文件访问、系统 API 等）。
-- **状态**：当前仓库中的模块都已实现可用版本，后续功能会继续通过新增模块的方式递进发布。
+目前项目处于预览阶段，很多功能和UI还没有完整实现。
 
-## 功能模块
+## 已实现功能示例
 
-| 模块 | 核心功能 | 说明 |
-| --- | --- | --- |
-| 编程工具 | JSON 解析器、参数对比、进制转换、时间转换 | 面向日常调试，支持格式化、Diff 与常见数值换算。 |
-| 编码工具 | MD5 摘要、文件 Hash、Base64 编解码、AES、URL 编解码 | 集成多种哈希与加解密能力，可自定义密钥/向量。 |
-| 电脑操作 | Host 管理、环境变量整理、电脑常亮、框选截图、取色器、全局文件搜索 | 覆盖常见系统调优场景，含 rust_search 驱动的本地搜文件体验。 |
-| 网络 | 局域网快传、断网急救、IP 查看 | 提供局域网分享、网络检测与代理/DNS 修复脚本。 |
-| 效率工具 | 灵感便签、待办清单 | 支持搜索、置顶与顺滑动效，方便记录灵感/任务。 |
-| 图标 | SVG 预览、图片转图标 | 粘贴 SVG 即看效果，或批量生成多尺寸图标资源。 |
+- **框选截屏 + OCR**：调用 Tauri 原生遮罩完成区域截图，并内置 PaddleOCR模型识别截图文字。
+- **局域网文件传输**：通过内置 HTTP 服务生成二维码/链接，实现局域网设备的文件下发。
+- **本地文件搜索**：封装 rust_search 与系统目录选择器，可筛选路径、实时预览命中结果。
+- **JSON 工具集**：支持格式化、折叠、搜索、差异对比等操作，便于调试接口或结构化数据。
+- **IP / 网络概览**：IP 查看工具列出本机 IPv4/IPv6、子网、代理/ VPN 状态，并可查看 hosts/ 环境代理等信息。
+- **环境变量查看器**：自动读取 macOS/Linux shell 配置及 Windows 注册表，按“键值”“路径”分类展示，支持复制。
+- **Hosts 管理面板**：解析系统 hosts 文件（macOS/Linux `/etc/hosts`、Windows `System32/drivers/etc/hosts`），展示启用状态、IP、域名，可一键复制整行或全部。
 
-> 每个模块下的工具均支持检索、收藏与快捷切换，已实现功能的状态标记为 “ready”，待上线的卡片会显示 “即将上线”。
+<p align="center">
+  <figure>
+    <img src="images/screen0.webp" alt="首页收藏页" width="90%" />
+    <figcaption>图 1：首页收藏页</figcaption>
+  </figure>
+  <figure>
+    <img src="images/screen1.webp" alt="框选截屏" width="90%" />
+    <figcaption>图 2：框选截屏</figcaption>
+  </figure>
+  <figure>
+    <img src="images/screen2.webp" alt="JSON 工具" width="90%" />
+    <figcaption>图 3：JSON 工具</figcaption>
+  </figure>
+</p>
+
+## 环境要求
+
+- Node.js 18+
+- [pnpm](https://pnpm.io) 10+
+- Rust 工具链
 
 ## 快速开始
 
-1. **环境准备**
-   - Node.js 18+
-   - pnpm 10（见 `packageManager` 字段）
-   - Rust 工具链（Tauri 依赖）
-2. **安装依赖**
+```bash
+# 安装依赖
+pnpm i
 
-   ```bash
-   pnpm install
-   ```
+# 启动桌面调试（Tauri + Next）
+pnpm tauri dev
 
-3. **运行 Web 预览（Next.js）**
-
-   ```bash
-   pnpm run app:dev
-   # 浏览器访问 http://localhost:5188
-   ```
-
-4. **运行桌面客户端（Tauri）**
-
-   ```bash
-   pnpm run dev
-   ```
-
-5. **打包**
-
-   ```bash
-   # 构建 Next.js 静态产物
-   pnpm run app:build
-   # 构建 Tauri 安装包
-   pnpm run build
-   ```
-
-## 如何测试
-
-1. **单元脚本**：项目暂未集成自动化测试框架，当前以手动冒烟为主。
-2. **Web 冒烟流程**
-   - 运行 `pnpm run app:dev`。
-   - 打开浏览器，依次切换顶部模块卡片，确认工具卡片能加载、搜索结果正确、收藏列表交互正常。
-3. **桌面客户端冒烟流程**
-   - 使用 `pnpm run dev` 启动 Tauri。
-   - 验证系统级能力：例如文件搜索是否能扫描目标目录，截图/取色器能否调用系统 API。
-   - 在网络与编码模块中执行读写操作，核对输出是否与 Web 端一致。
-4. **生产包验证**
-   - 执行 `pnpm run build`。
-   - 在 `src-tauri/target` 下安装或运行产物，检查启动速度、窗口缩放、系统权限提示是否符合预期。
-5. **问题记录**
-   - 若发现异常，请在 `docs/` 或 Issue 模板中描述复现步骤、系统信息与相关日志，便于追踪。
-
-## 目录速览
-
-```
-├─ src/              # 前端界面与功能模块
-├─ src-tauri/        # Tauri 配置与 Rust 端代码
-├─ images/           # README 引用的品牌素材（logo 等）
-├─ docs/             # 设计草稿或规格文档
-└─ tauri.conf.json   # Tauri 打包配置
+# 构建系统安装包
+pnpm tauri build
 ```
 
-## 后续规划
 
-- 引入更多系统级工具（如剪贴板历史、窗口布局）并逐步补充自动化测试。
-- 输出模块开发规范，提供模板以便扩展新的工具卡片。
-- 整合云端同步能力，支持在多终端共享收藏与配置。
 
-欢迎提交 Issue / PR，或在 `docs/` 下补充新的工具需求。
+## 贡献与反馈
+
+欢迎通过 Issue/PR 提交新工具或改进体验。

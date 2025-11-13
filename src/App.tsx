@@ -260,7 +260,7 @@ export default function App() {
       return;
     }
     const stored = window.localStorage.getItem("chef-theme");
-    if (stored === "light" || stored === "dark") {
+    if (stored === "dark" || stored === "light") {
       setTheme(stored);
       return;
     }

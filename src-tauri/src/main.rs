@@ -8,9 +8,10 @@ mod windowing;
 use commands::{
     cancel_region_capture, capture_region, diagnose_network_connectivity, finalize_region_capture,
     get_file_share_status, get_network_overview, list_window_snap_targets, pick_screen_color,
-    pick_search_directories, pick_share_directories, pick_share_files, run_network_fix_action,
-    search_files, set_current_window_always_on_top, show_region_capture_overlay, start_file_share,
-    stop_file_share, FileShareManager,
+    pick_search_directories, pick_share_directories, pick_share_files, read_environment_sources,
+    read_hosts_file, run_network_fix_action, save_capture_image, search_files,
+    set_current_window_always_on_top, show_region_capture_overlay, start_file_share, stop_file_share,
+    FileShareManager,
 };
 
 fn main() {
@@ -34,6 +35,9 @@ fn main() {
             get_network_overview,
             diagnose_network_connectivity,
             run_network_fix_action,
+            read_environment_sources,
+            read_hosts_file,
+            save_capture_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

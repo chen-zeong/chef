@@ -1,64 +1,85 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import md5 from "crypto-js/md5";
 import {
   BUTTON_GHOST,
-  BUTTON_PRIMARY,
-  CHIP_ACTIVE,
-  CHIP_BASE,
   PANEL_BLOCK,
-  PANEL_DESCRIPTION,
-  PANEL_FOOTER,
   PANEL_GRID,
   PANEL_HEADER,
   PANEL_LABEL,
   PANEL_MUTED,
-  PANEL_OPTION_GROUP,
-  PANEL_OPTIONS,
   PANEL_RESULT,
-  PANEL_TEXTAREA,
   PANEL_TITLE
 } from "../../ui/styles";
 
-type CaseStyle = "lower" | "upper";
-type BitLength = 16 | 32;
-
-const bitOptions: { label: string; value: BitLength }[] = [
-  { label: "32 位", value: 32 },
-  { label: "16 位", value: 16 }
-];
-
-const caseOptions: { label: string; value: CaseStyle }[] = [
-  { label: "小写", value: "lower" },
-  { label: "大写", value: "upper" }
-];
+type DigestVariant = {
+  id: string;
+  label: string;
+  value: string;
+};
 
 const emptyMessage = "输入内容即可生成 MD5 摘要。";
 
 export function Md5Tool() {
   const [input, setInput] = useState<string>("Chef Toolbox");
-  const [bitLength, setBitLength] = useState<BitLength>(32);
-  const [caseStyle, setCaseStyle] = useState<CaseStyle>("lower");
-  const [isCopied, setIsCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const resultContainerRef = useRef<HTMLDivElement | null>(null);
+  const [resultsMaxHeight, setResultsMaxHeight] = useState<number | null>(null);
 
-  const digest = useMemo(() => {
+  const digestVariants = useMemo<DigestVariant[]>(() => {
     if (!input) {
-      return emptyMessage;
+      return [];
     }
     const hash = md5(input).toString();
-    const sliced = bitLength === 32 ? hash : hash.substring(8, 24);
-    return caseStyle === "upper" ? sliced.toUpperCase() : sliced.toLowerCase();
-  }, [input, bitLength, caseStyle]);
+    const lower32 = hash.toLowerCase();
+    const upper32 = hash.toUpperCase();
+    const lower16 = lower32.substring(8, 24);
+    const upper16 = upper32.substring(8, 24);
+    return [
+      { id: "32-lower", label: "32 位 · 小写", value: lower32 },
+      { id: "32-upper", label: "32 位 · 大写", value: upper32 },
+      { id: "16-lower", label: "16 位 · 小写", value: lower16 },
+      { id: "16-upper", label: "16 位 · 大写", value: upper16 }
+    ];
+  }, [input]);
+  const rows = digestVariants;
 
-  const handleCopy = async () => {
-    if (!input) {
+  useEffect(() => {
+    if (!copiedKey) {
+      return;
+    }
+    const timer = window.setTimeout(() => setCopiedKey(null), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copiedKey]);
+
+  useEffect(() => {
+    if (copiedKey && !rows.some((row) => row.id === copiedKey)) {
+      setCopiedKey(null);
+    }
+  }, [copiedKey, rows]);
+
+  useEffect(() => {
+    const updateMaxHeight = () => {
+      if (!resultContainerRef.current) {
+        return;
+      }
+      const rect = resultContainerRef.current.getBoundingClientRect();
+      const available = window.innerHeight - rect.top - 40;
+      setResultsMaxHeight(Math.max(220, available));
+    };
+    updateMaxHeight();
+    window.addEventListener("resize", updateMaxHeight);
+    return () => window.removeEventListener("resize", updateMaxHeight);
+  }, []);
+
+  const handleCopy = async (value: string, key: string) => {
+    if (!value) {
       return;
     }
     try {
-      await navigator.clipboard.writeText(digest);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 1600);
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
     } catch (error) {
       console.error(error);
     }
@@ -68,8 +89,8 @@ export function Md5Tool() {
     <div className="flex flex-col gap-6">
       <header className={PANEL_HEADER}>
         <div>
+          <p className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">Hash</p>
           <h3 className={PANEL_TITLE}>MD5 摘要生成器</h3>
-          <p className={PANEL_DESCRIPTION}>支持 16 / 32 位输出及大小写快速切换。</p>
         </div>
         <motion.button
           type="button"
@@ -85,7 +106,7 @@ export function Md5Tool() {
         <div className={PANEL_BLOCK}>
           <label className={PANEL_LABEL}>输入文本</label>
           <textarea
-            className={PANEL_TEXTAREA}
+            className="scroll-area min-h-[160px] resize-none rounded-md border border-[rgba(15,23,42,0.08)] bg-[#fafafa] px-4 py-3 font-mono text-sm text-[var(--text-primary)] leading-relaxed outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/25"
             spellCheck={false}
             value={input}
             placeholder="请输入要加密的内容"
@@ -93,78 +114,65 @@ export function Md5Tool() {
           />
         </div>
 
-        <div className={PANEL_BLOCK}>
-          <label className={PANEL_LABEL}>MD5 结果</label>
-          <div className={PANEL_RESULT}>
-            {input ? <span>{digest}</span> : <span className={PANEL_MUTED}>{emptyMessage}</span>}
-          </div>
-          <motion.button
-            type="button"
-            className={BUTTON_PRIMARY}
-            whileTap={{ scale: input ? 0.95 : 1 }}
-            onClick={handleCopy}
-            disabled={!input}
-          >
-            {isCopied ? "已复制" : "复制结果"}
-          </motion.button>
+        <div className={clsx(PANEL_BLOCK, "min-h-0")}>
+          <label className={PANEL_LABEL}>摘要结果</label>
+          {rows.length > 0 ? (
+            <div
+              ref={resultContainerRef}
+              className="scroll-area flex-1 min-h-[220px] overflow-auto pr-2"
+              style={resultsMaxHeight ? { maxHeight: `${resultsMaxHeight}px` } : undefined}
+            >
+              <div className="flex flex-col gap-3">
+                {rows.map((row) => (
+                  <ResultRow
+                    key={row.id}
+                    label={row.label}
+                    value={row.value}
+                    copyKey={row.id}
+                    copiedKey={copiedKey}
+                    onCopy={handleCopy}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className={clsx(PANEL_RESULT, "text-sm", PANEL_MUTED)}>{emptyMessage}</div>
+          )}
         </div>
       </div>
 
-      <div className={PANEL_OPTIONS}>
-        <OptionGroup
-          label="位数"
-          options={bitOptions}
-          current={bitLength}
-          onSelect={setBitLength}
-        />
-        <OptionGroup
-          label="大小写"
-          options={caseOptions}
-          current={caseStyle}
-          onSelect={setCaseStyle}
-        />
-      </div>
-
-      <footer className={PANEL_FOOTER}>
-        <span>基于 crypto-js/md5 实现 · 仅用于非安全场景</span>
-      </footer>
     </div>
   );
 }
 
-type OptionGroupProps<T extends string | number> = {
+type ResultRowProps = {
   label: string;
-  options: { label: string; value: T }[];
-  current: T;
-  onSelect: (value: T) => void;
+  value: string;
+  copyKey: string;
+  copiedKey: string | null;
+  onCopy: (value: string, key: string) => void;
 };
 
-function OptionGroup<T extends string | number>({
-  label,
-  options,
-  current,
-  onSelect
-}: OptionGroupProps<T>) {
+function ResultRow({ label, value, copyKey, copiedKey, onCopy }: ResultRowProps) {
   return (
-    <div className={PANEL_OPTION_GROUP}>
-      <span className={PANEL_LABEL}>{label}</span>
-      <div className="flex flex-wrap gap-2">
-        {options.map((option) => {
-          const active = option.value === current;
-          return (
-            <motion.button
-              key={option.value}
-              type="button"
-              className={clsx(CHIP_BASE, active && CHIP_ACTIVE)}
-              onClick={() => onSelect(option.value)}
-              whileTap={{ scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 360, damping: 28 }}
-            >
-              {option.label}
-            </motion.button>
-          );
-        })}
+    <div
+      className={clsx(
+        "flex flex-wrap items-center gap-3 rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-4 py-3"
+      )}
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-xs text-[var(--text-tertiary)]">{label}</span>
+        <span className="font-mono text-sm text-[var(--text-primary)] break-all">{value}</span>
       </div>
+      <motion.button
+        type="button"
+        className={clsx(BUTTON_GHOST, "px-3 py-1 text-xs")}
+        whileTap={{ scale: value ? 0.95 : 1 }}
+        disabled={!value}
+        onClick={() => value && onCopy(value, copyKey)}
+      >
+        {copiedKey === copyKey ? "已复制" : "复制"}
+      </motion.button>
     </div>
   );
 }

@@ -3,12 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { motion } from "framer-motion";
 import clsx from "clsx";
-import {
-  BUTTON_PRIMARY,
-  PANEL_CONTAINER,
-  PANEL_DESCRIPTION,
-  PANEL_TITLE
-} from "../../ui/styles";
+import { BUTTON_PRIMARY, PANEL_DESCRIPTION, PANEL_TITLE } from "../../ui/styles";
 import type { CaptureSuccessPayload } from "./region-capture/regionCaptureTypes";
 
 export function ScreenshotTool() {
@@ -16,6 +11,7 @@ export function ScreenshotTool() {
   const [error, setError] = useState<string | null>(null);
   const [lastCapture, setLastCapture] = useState<CaptureSuccessPayload | null>(null);
   const [hideMainWindow, setHideMainWindow] = useState(true);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const handleStartCapture = async () => {
     setError(null);
@@ -27,9 +23,7 @@ export function ScreenshotTool() {
         }
       });
     } catch (issue) {
-      setError(
-        issue instanceof Error ? issue.message : "启动框选窗口失败，请稍后再试。"
-      );
+      setError(issue instanceof Error ? issue.message : "启动框选窗口失败，请稍后再试。");
     } finally {
       setLaunching(false);
     }
@@ -37,24 +31,22 @@ export function ScreenshotTool() {
 
   useEffect(() => {
     let mounted = true;
-
-    const setupListener = async () => {
-      const unlisten = await listen<CaptureSuccessPayload>("region-capture-complete", (event) => {
-        if (!mounted) {
-          return;
-        }
-        setLastCapture(event.payload);
-        setError(null);
-      });
-      return unlisten;
-    };
-
     let disposer: (() => void) | undefined;
-    setupListener()
-      .then((unlisten) => {
+
+    (async () => {
+      try {
+        const unlisten = await listen<CaptureSuccessPayload>("region-capture-complete", (event) => {
+          if (!mounted) {
+            return;
+          }
+          setLastCapture(event.payload);
+          setError(null);
+        });
         disposer = unlisten;
-      })
-      .catch(() => undefined);
+      } catch (listenerError) {
+        console.error(listenerError);
+      }
+    })();
 
     return () => {
       mounted = false;
@@ -64,31 +56,38 @@ export function ScreenshotTool() {
     };
   }, []);
 
-  const capturePreviewSrc = lastCapture
-    ? `data:image/png;base64,${lastCapture.base64}`
-    : null;
+  const capturePreviewSrc = lastCapture ? `data:image/png;base64,${lastCapture.base64}` : null;
+
+  const handleSaveCapture = async () => {
+    if (!lastCapture) {
+      return;
+    }
+    setSaveMessage(null);
+    try {
+      const savedPath = await invoke<string>("save_capture_image", { base64: lastCapture.base64 });
+      setSaveMessage(savedPath ? `已保存：${savedPath}` : "截图已保存");
+      window.setTimeout(() => setSaveMessage(null), 2500);
+    } catch (saveError) {
+      console.error(saveError);
+      setError(saveError instanceof Error ? saveError.message : "保存图片失败，请稍后再试。");
+    }
+  };
 
   return (
-    <section className={clsx(PANEL_CONTAINER, "gap-4")}>
-      <header className="flex flex-col gap-1">
-        <span className="text-xs uppercase tracking-[0.28em] text-[var(--text-tertiary)]">
-          Region Capture
-        </span>
+    <section className="flex flex-col gap-4 rounded-2xl bg-[var(--panel-bg)] shadow-[var(--shadow-soft)]">
+      <header className="flex flex-col gap-1 px-6 pt-6">
+        <span className="text-xs uppercase tracking-[0.28em] text-[var(--text-tertiary)]">Region Capture</span>
         <h3 className={PANEL_TITLE}>框选截图</h3>
       </header>
 
-      <p className={PANEL_DESCRIPTION}>
+      <p className={clsx(PANEL_DESCRIPTION, "px-6")}>
         点击按钮进入框选模式，拖动鼠标即可选取任意区域，松开后自动生成截图并回传到此处。
       </p>
 
-      <div className="flex items-center justify-between rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-4 py-3">
+      <div className="mx-6 flex items-center justify-between rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-4 py-3">
         <div className="flex flex-col gap-1">
-          <span className="text-sm font-semibold text-[var(--text-primary)]">
-            截图时隐藏主窗口
-          </span>
-          <span className="text-xs text-[var(--text-secondary)]">
-            启动框选前先折叠 Chef，截图完成后会自动恢复回主页面。
-          </span>
+          <span className="text-sm font-semibold text-[var(--text-primary)]">截图时隐藏主窗口</span>
+          <span className="text-xs text-[var(--text-secondary)]">启动框选前先折叠 Chef，截图完成后会自动恢复回主页面。</span>
         </div>
         <button
           type="button"
@@ -112,7 +111,7 @@ export function ScreenshotTool() {
 
       <motion.button
         type="button"
-        className={clsx(BUTTON_PRIMARY, "w-full justify-center")}
+        className={clsx(BUTTON_PRIMARY, "mx-6 w-[calc(100%-3rem)] justify-center")}
         whileTap={{ scale: 0.97 }}
         disabled={isLaunching}
         onClick={handleStartCapture}
@@ -120,10 +119,8 @@ export function ScreenshotTool() {
         启动框选遮罩
       </motion.button>
 
-      <div className="rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-4 text-sm text-[var(--text-secondary)]">
-        <h4 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
-          使用提示
-        </h4>
+      <div className="mx-6 rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-4 text-sm text-[var(--text-secondary)]">
+        <h4 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">使用提示</h4>
         <ul className="list-inside list-disc space-y-2">
           <li>按住鼠标左键拖拽完成框选，松开后立即进入标注模式。</li>
           <li>工具栏支持画线、矩形、圈选、画笔与马赛克效果，可逐步撤销。</li>
@@ -133,40 +130,34 @@ export function ScreenshotTool() {
       </div>
 
       {capturePreviewSrc && lastCapture && (
-        <div className="flex flex-col gap-3 rounded-xl border border-[color:var(--border-subtle)] bg-white/70 p-4 shadow-inner">
+        <div className="mx-6 flex flex-col gap-3 rounded-xl border border-[color:var(--border-subtle)] bg-white/70 p-4 shadow-inner">
           <div className="flex items-center justify-between text-xs text-[var(--text-tertiary)]">
-            <span className="font-medium text-[var(--text-secondary)]">
-              最近截图
-            </span>
+            <span className="font-medium text-[var(--text-secondary)]">最近截图</span>
             <span>
               {lastCapture.width} × {lastCapture.height}
             </span>
           </div>
           <div className="overflow-hidden rounded-lg border border-[rgba(15,23,42,0.08)] bg-[var(--surface-alt-bg)]">
-            <img
-              src={capturePreviewSrc}
-              alt="最近截图"
-              className="max-h-[260px] w-full object-contain"
-            />
+            <img src={capturePreviewSrc} alt="最近截图" className="max-h-[260px] w-full object-contain" />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <motion.button type="button" className={BUTTON_PRIMARY} whileTap={{ scale: 0.95 }} onClick={handleSaveCapture}>
+              保存图片
+            </motion.button>
+            {saveMessage && <span className="text-xs text-[var(--text-secondary)]">{saveMessage}</span>}
           </div>
           <div className="rounded-lg bg-[var(--surface-alt-bg)] px-3 py-2 text-xs text-[var(--text-tertiary)]">
-            <div>
-              物理像素：{lastCapture.width} × {lastCapture.height}
-            </div>
-            <div>
-              逻辑尺寸：{lastCapture.logical_width} × {lastCapture.logical_height}
-            </div>
+            <div>物理像素：{lastCapture.width} × {lastCapture.height}</div>
+            <div>逻辑尺寸：{lastCapture.logical_width} × {lastCapture.logical_height}</div>
           </div>
           <div className="rounded-lg bg-[var(--surface-alt-bg)] px-3 py-2 text-xs text-[var(--text-secondary)]">
-            <span className="block truncate font-mono text-[11px]">
-              {lastCapture.path}
-            </span>
+            <span className="block truncate font-mono text-[11px]">{lastCapture.path}</span>
           </div>
         </div>
       )}
 
       {error && (
-        <div className="rounded-xl border border-[rgba(220,38,38,0.2)] bg-[rgba(254,226,226,0.6)] px-3 py-2 text-sm text-[var(--negative)]">
+        <div className="mx-6 mb-6 rounded-xl border border-[rgba(220,38,38,0.2)] bg-[rgba(254,226,226,0.6)] px-3 py-2 text-sm text-[var(--negative)]">
           {error}
         </div>
       )}

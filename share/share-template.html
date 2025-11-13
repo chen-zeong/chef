@@ -4,29 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Chef 局域网分享</title>
-    <!-- 引入 Inter 字体 -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
-      rel="stylesheet"
-    />
     <style>
       :root {
-        /* --accent: __ACCENT__; */
-        /* 使用一个更现代的紫蓝色调作为默认 accent */
-        --accent: #6f55f2;
-        /* 更新背景为更有活力的渐变 */
-        --bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        /* 增加透明度并为毛玻璃效果做准备 */
-        --panel: rgba(255, 255, 255, 0.85);
-        --text-primary: #0f172a;
-        --text-secondary: #334155;
-        --text-tertiary: #64748b;
-        /* 为按钮光晕效果准备 */
-        --accent-glow: rgba(111, 85, 242, 0.4);
+        /* 采用 drive.html 的样式变量 */
+        --accent: #7055ff; /* drive.html 的紫色 */
+        --bg: #f6f6f8; /* drive.html 的页面背景 */
+        --panel: rgba(255, 255, 255, 0.82); /* drive.html 的面板背景 */
+        --panel-border: rgba(10, 10, 10, 0.08);
+        --text-primary: #111112;
+        --text-secondary: rgba(0, 0, 0, 0.6);
+        --text-tertiary: rgba(0, 0, 0, 0.55);
 
-        /* 优先使用 Inter 字体 */
+        /* 采用 drive.html 的字体栈 */
         font-family: "Inter", "SF Pro Display", -apple-system,
           BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: var(--text-primary);
@@ -41,39 +30,26 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        /* 布局 padding 保持不变 */
         padding: clamp(18px, 4vw, 48px);
       }
       main {
         width: min(980px, 100%);
-        background: var(--panel);
-        /* 增加毛玻璃效果 */
-        backdrop-filter: blur(16px);
-        border-radius: 36px;
-        padding: clamp(20px, 4vw, 44px);
-        /* 更新为更柔和的阴影 */
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1),
-          0 10px 20px -10px rgba(0, 0, 0, 0.08);
+        /* 采用 drive.html .drive-hero 的背景和边框 */
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.92),
+          rgba(245, 247, 255, 0.8)
+        );
+        border-radius: 36px; /* 保持原布局的圆角 */
+        padding: clamp(20px, 4vw, 44px); /* 保持原布局的 padding */
+        /* 采用 drive.html .drive-hero 的阴影和边框 */
+        box-shadow: 0 25px 60px rgba(15, 23, 42, 0.08);
+        border: 1px solid var(--panel-border);
         position: relative;
         overflow: hidden;
-        /* 添加一个微妙的边框来强化玻璃感 */
-        border: 1px solid rgba(255, 255, 255, 0.2);
       }
-      /* 更新装饰性光晕的颜色 */
-      main::after {
-        content: "";
-        position: absolute;
-        width: 320px;
-        height: 320px;
-        background: radial-gradient(
-          circle,
-          var(--accent, rgba(121, 84, 234, 0.25)),
-          transparent 60%
-        );
-        top: -140px;
-        right: -120px;
-        filter: blur(10px);
-        opacity: 0.8;
-      }
+      /* 移除了 ::after 伪元素，匹配 drive.html 的简洁风格 */
       .content {
         position: relative;
         z-index: 1;
@@ -81,6 +57,7 @@
         flex-direction: column;
         gap: clamp(20px, 3vw, 36px);
       }
+      /* hero 布局保持不变 */
       .hero {
         display: flex;
         justify-content: space-between;
@@ -97,9 +74,9 @@
         align-self: flex-start;
         padding: 6px 14px;
         border-radius: 999px;
-        /* 更新 tag 颜色 */
-        background: rgba(111, 85, 242, 0.15);
-        color: var(--accent, #6f55f2);
+        /* 采用 drive.html .drive-pill--soft 的样式 */
+        background: rgba(112, 85, 255, 0.1);
+        color: #4d38c1;
         font-size: 0.75rem;
         font-weight: 600;
         letter-spacing: 0.18em;
@@ -107,6 +84,7 @@
       .hero__title {
         margin: 0;
         font-size: clamp(1.7rem, 5vw, 2.6rem);
+        color: var(--text-primary);
       }
       .hero__desc {
         margin: 0;
@@ -116,12 +94,11 @@
       }
       .hero__stats {
         flex: 0 0 260px;
-        border-radius: 28px;
-        padding: 18px;
-        /* 更新为玻璃质感 */
-        background: rgba(255, 255, 255, 0.3);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.4);
+        /* 采用 drive.html .drive-widget 的样式 */
+        border-radius: 1.25rem;
+        padding: 1.25rem;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(0, 0, 0, 0.06);
         display: grid;
         gap: 14px;
       }
@@ -142,35 +119,32 @@
         color: var(--text-primary);
       }
       .file-board {
-        border-radius: 32px;
-        /* 移除边框，使用背景色区分 */
-        border: none;
-        background: rgba(248, 250, 252, 0.8);
-        padding: clamp(18px, 3vw, 28px);
+        /* 采用 drive.html .drive-list 的样式 */
+        border-radius: 1.5rem;
+        border: 1px solid var(--panel-border);
+        background: rgba(255, 255, 255, 0.95);
+        padding: clamp(1.5rem, 3vw, 1.75rem);
         display: flex;
         flex-direction: column;
-        gap: 18px;
+        gap: 0.75rem; /* 减小卡片间距以匹配 drive 风格 */
       }
       .file-card {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto auto;
         gap: 16px;
         align-items: center;
-        padding: 16px 20px;
-        border-radius: 24px;
-        background: rgba(255, 255, 255, 0.9);
-        /* 更新为更柔和的阴影 */
-        box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.04),
-          0 4px 10px -4px rgba(15, 23, 42, 0.03);
-        /* 移除旧边框，换个更亮的 */
-        border: 1px solid rgba(255, 255, 255, 1);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        /* 采用 drive.html .drive-share 的样式 */
+        padding: 1rem 1.1rem;
+        border-radius: 0.85rem;
+        background: rgba(0, 0, 0, 0.03);
+        border: 1px solid rgba(0, 0, 0, 0.04);
+        /* 移除阴影和变换 */
+        box-shadow: none;
+        transition: background 0.2s ease;
       }
-      /* 添加卡片悬停效果 */
+      /* 移除 transform 悬停效果，改为简单的背景变化 */
       .file-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 30px -5px rgba(15, 23, 42, 0.07),
-          0 6px 15px -4px rgba(15, 23, 42, 0.05);
+        background: rgba(0, 0, 0, 0.05);
       }
       .file-card__main {
         display: flex;
@@ -182,9 +156,10 @@
         width: 48px;
         height: 48px;
         border-radius: 16px;
-        /* 更新 icon 背景色 */
-        background: rgba(111, 85, 242, 0.1);
-        color: var(--accent, #6f55f2);
+        /* 采用 drive.html .drive-pill--ghost 的样式 */
+        background: rgba(0, 0, 0, 0.04);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        color: var(--text-secondary);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -218,36 +193,35 @@
         border-radius: 999px;
         font-weight: 600;
         font-size: 0.85rem;
+        /* 采用 drive.html .drive-btn--solid 的样式 */
         color: white;
-        /* 更新按钮渐变和阴影 */
-        background: linear-gradient(120deg, var(--accent, #5e5df0), #764ba2);
-        box-shadow: 0 10px 20px -5px var(--accent-glow);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        background: #111;
+        border: 1px solid #111;
+        box-shadow: none;
+        transition: opacity 0.2s ease;
       }
       .file-btn__icon {
         font-size: 0.95rem;
       }
-      /* 增加按钮悬停效果 */
+      /* 移除 transform 悬停效果 */
       .file-btn:hover {
-        transform: translateY(-2px) scale(1.03);
-        box-shadow: 0 14px 25px -5px var(--accent-glow);
+        opacity: 0.85;
       }
       .file-btn:active {
-        transform: translateY(0px) scale(1);
-        box-shadow: 0 8px 18px -5px var(--accent-glow);
+        opacity: 0.7;
       }
       .footer {
         text-align: center;
         font-size: 0.78rem;
         color: var(--text-secondary);
       }
+      /* 移动端适配样式保持不变 (布局) */
       @media (max-width: 720px) {
         .hero {
           flex-direction: column;
         }
         .file-card {
           grid-template-columns: minmax(0, 1fr);
-          /* 在移动端增加卡片间距 */
           gap: 12px;
         }
         .file-meta {
@@ -256,7 +230,7 @@
         .file-btn {
           width: 100%;
           justify-content: center;
-          padding: 12px 20px; /* 增大移动端点击区域 */
+          padding: 12px 20px;
         }
       }
     </style>

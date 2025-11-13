@@ -130,7 +130,7 @@ export function TimeConverterTool() {
             使用当前日期
           </motion.button>
           <motion.button type="button" className={BUTTON_GHOST} whileTap={{ scale: 0.95 }} onClick={handleClear}>
-            清空输入
+            清空
           </motion.button>
         </div>
       </header>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import {
@@ -7,15 +7,12 @@ import {
   BUTTON_TOGGLE_ACTIVE,
   PANEL_BLOCK,
   PANEL_BUTTON_GROUP,
-  PANEL_DESCRIPTION,
   PANEL_ERROR,
-  PANEL_FOOTER,
   PANEL_GRID,
   PANEL_HEADER,
   PANEL_LABEL,
   PANEL_MUTED,
   PANEL_RESULT,
-  PANEL_TEXTAREA,
   PANEL_TITLE
 } from "../../ui/styles";
 
@@ -44,6 +41,8 @@ export function Base64Tool() {
   const [output, setOutput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const resultContainerRef = useRef<HTMLDivElement | null>(null);
+  const [resultsMaxHeight, setResultsMaxHeight] = useState<number | null>(null);
 
   useEffect(() => {
     try {
@@ -58,6 +57,33 @@ export function Base64Tool() {
     }
   }, [input, mode]);
 
+  const rows = useMemo(() => {
+    if (!output) {
+      return [];
+    }
+    return [
+      {
+        id: "base64-result",
+        label: mode === "encode" ? "编码结果" : "解码结果",
+        value: output
+      }
+    ];
+  }, [output, mode]);
+
+  useEffect(() => {
+    const updateMaxHeight = () => {
+      if (!resultContainerRef.current) {
+        return;
+      }
+      const rect = resultContainerRef.current.getBoundingClientRect();
+      const available = window.innerHeight - rect.top - 40;
+      setResultsMaxHeight(Math.max(220, available));
+    };
+    updateMaxHeight();
+    window.addEventListener("resize", updateMaxHeight);
+    return () => window.removeEventListener("resize", updateMaxHeight);
+  }, []);
+
   const handleCopy = async () => {
     if (!output) {
       return;
@@ -65,18 +91,20 @@ export function Base64Tool() {
     try {
       await navigator.clipboard.writeText(output);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
+      window.setTimeout(() => setCopied(false), 1500);
     } catch (copyError) {
       setError(copyError instanceof Error ? copyError.message : "复制失败，请稍后重试。");
     }
   };
 
+  const emptyMessage = mode === "encode" ? "输入内容后将显示编码结果。" : "输入 Base64 后将显示解码结果。";
+
   return (
     <div className="flex flex-col gap-6">
       <header className={PANEL_HEADER}>
         <div>
+          <p className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">Codec</p>
           <h3 className={PANEL_TITLE}>Base64 编解码</h3>
-          <p className={PANEL_DESCRIPTION}>快速处理文本的 Base64 编码与解码。</p>
         </div>
         <motion.div className={PANEL_BUTTON_GROUP} layout>
           <motion.button
@@ -102,24 +130,36 @@ export function Base64Tool() {
         <div className={PANEL_BLOCK}>
           <label className={PANEL_LABEL}>{mode === "encode" ? "原始内容" : "Base64 字符串"}</label>
           <textarea
-            className={PANEL_TEXTAREA}
+            className="scroll-area min-h-[160px] resize-none rounded-md border border-[rgba(15,23,42,0.08)] bg-[#fafafa] px-4 py-3 font-mono text-sm text-[var(--text-primary)] leading-relaxed outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/25"
             spellCheck={false}
             value={input}
             onChange={(event) => setInput(event.target.value)}
             placeholder={mode === "encode" ? "请输入要编码的内容" : "请输入 Base64 字符串"}
           />
         </div>
-        <div className={PANEL_BLOCK}>
+        <div className={clsx(PANEL_BLOCK, "min-h-0")}>
           <label className={PANEL_LABEL}>{mode === "encode" ? "编码结果" : "解码结果"}</label>
-          <div className={clsx(PANEL_RESULT, !output && PANEL_MUTED)}>
-            {output || "结果会显示在这里"}
-          </div>
+          {rows.length > 0 ? (
+            <div
+              ref={resultContainerRef}
+              className="scroll-area flex-1 min-h-[220px] overflow-auto pr-2"
+              style={resultsMaxHeight ? { maxHeight: `${resultsMaxHeight}px` } : undefined}
+            >
+              <div className="flex flex-col gap-3">
+                {rows.map((row) => (
+                  <ResultRow key={row.id} label={row.label} value={row.value} />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className={clsx(PANEL_RESULT, "text-sm", PANEL_MUTED)}>{emptyMessage}</div>
+          )}
           <motion.button
             type="button"
             className={BUTTON_PRIMARY}
             whileTap={{ scale: output ? 0.95 : 1 }}
-            onClick={handleCopy}
             disabled={!output}
+            onClick={handleCopy}
           >
             {copied ? "已复制" : "复制结果"}
           </motion.button>
@@ -127,9 +167,22 @@ export function Base64Tool() {
       </div>
 
       {error && <div className={PANEL_ERROR}>{error}</div>}
-      <footer className={PANEL_FOOTER}>
-        <span>使用浏览器原生 Base64 能力 · 支持 UTF-8 文本</span>
-      </footer>
+    </div>
+  );
+}
+
+type ResultRowProps = {
+  label: string;
+  value: string;
+};
+
+function ResultRow({ label, value }: ResultRowProps) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-4 py-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-xs text-[var(--text-tertiary)]">{label}</span>
+        <span className="font-mono text-sm text-[var(--text-primary)] break-all">{value}</span>
+      </div>
     </div>
   );
 }

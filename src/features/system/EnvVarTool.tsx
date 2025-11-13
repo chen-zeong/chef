@@ -1,174 +1,253 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import clsx from "clsx";
-import { CHIP_ACTIVE, CHIP_BASE, PANEL_CONTAINER, PANEL_INPUT } from "../../ui/styles";
+import { invoke } from "@tauri-apps/api/core";
+import { BUTTON_GHOST, BUTTON_PRIMARY, PANEL_MUTED, PANEL_RESULT } from "../../ui/styles";
 
-type ShellType = "bash" | "zsh" | "powershell";
+type EnvSource = {
+  source: string;
+  entries: {
+    key: string;
+    value: string;
+  }[];
+};
 
-type EnvEntry = {
-  id: string;
+type DisplayEntry = {
+  source: string;
   key: string;
   value: string;
 };
 
-const shellOptions: { value: ShellType; label: string }[] = [
-  { value: "bash", label: "Bash" },
-  { value: "zsh", label: "Zsh" },
-  { value: "powershell", label: "PowerShell" }
-];
-
 export function EnvVarTool() {
-  const [shell, setShell] = useState<ShellType>("bash");
-  const [entries, setEntries] = useState<EnvEntry[]>([
-    { id: createId(), key: "API_URL", value: "https://localhost:3000" },
-    { id: createId(), key: "NODE_ENV", value: "development" }
-  ]);
+  const [sources, setSources] = useState<EnvSource[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const scriptText = useMemo(() => {
-    const filtered = entries.filter((entry) => entry.key.trim());
-    if (!filtered.length) {
-      return "";
+  useEffect(() => {
+    fetchSources();
+  }, []);
+
+  const fetchSources = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await invoke<EnvSource[]>("read_environment_sources");
+      setSources(result);
+    } catch (requestError) {
+      console.error(requestError);
+      setError("读取环境变量失败，请确认已授权访问相关文件。");
+    } finally {
+      setLoading(false);
     }
-    if (shell === "powershell") {
-      return filtered
-        .map(
-          (entry) =>
-            `$Env:${sanitizeKey(entry.key)} = "${escapeQuotes(entry.value)}"`
-        )
-        .join("\n");
+  };
+
+  const handleCopy = async (value: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      window.setTimeout(() => setCopiedKey((current) => (current === key ? null : current)), 1500);
+    } catch (copyError) {
+      console.error(copyError);
     }
-    return filtered
-      .map((entry) => `export ${sanitizeKey(entry.key)}="${escapeQuotes(entry.value)}"`)
-      .join("\n");
-  }, [entries, shell]);
-
-  const addEntry = () => {
-    setEntries((prev) => [...prev, { id: createId(), key: "", value: "" }]);
   };
 
-  const updateEntry = (id: string, patch: Partial<EnvEntry>) => {
-    setEntries((prev) => prev.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
-  };
-
-  const removeEntry = (id: string) => {
-    setEntries((prev) => prev.filter((entry) => entry.id !== id));
-  };
-
-  const handleCopy = async () => {
-    if (!scriptText) {
-      return;
-    }
-    await navigator.clipboard.writeText(scriptText);
-  };
+  const { pairEntries, pathEntries } = useMemo(() => flattenEntries(sources), [sources]);
+  const flattenedCount = pairEntries.length + pathEntries.length;
 
   return (
-    <div className="flex h-full flex-col">
-      <div className={clsx(PANEL_CONTAINER, "flex-1 gap-5")}>
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <span className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">Environment</span>
-            <h3 className="mt-1 text-xl font-semibold text-[var(--text-primary)]">环境变量管理</h3>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {shellOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setShell(option.value)}
-                className={clsx(
-                  CHIP_BASE,
-                  "px-4 py-2 text-xs uppercase tracking-[0.18em]",
-                  option.value === shell && CHIP_ACTIVE
-                )}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </header>
-
-        <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-[1fr_1fr_56px] items-center gap-3 text-[0.78rem] uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
-            <span>变量名</span>
-            <span>变量值</span>
-            <span />
-          </div>
-          {entries.map((entry) => (
-            <div
-              key={entry.id}
-              className="grid grid-cols-[1fr_1fr_56px] items-center gap-3 rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] px-3 py-2 shadow-sm"
-            >
-              <input
-                className={clsx(PANEL_INPUT, "py-2")}
-                value={entry.key}
-                placeholder="例如 API_URL"
-                onChange={(event) => updateEntry(entry.id, { key: event.target.value })}
-              />
-              <input
-                className={clsx(PANEL_INPUT, "py-2")}
-                value={entry.value}
-                placeholder="例如 https://example.com"
-                onChange={(event) => updateEntry(entry.id, { value: event.target.value })}
-              />
-              <button
-                type="button"
-                className="text-sm font-semibold text-[var(--negative)] transition-colors hover:text-[rgba(220,38,38,0.85)]"
-                onClick={() => removeEntry(entry.id)}
-              >
-                删除
-              </button>
-            </div>
-          ))}
-          <motion.button
-            type="button"
-            className="inline-flex items-center justify-center rounded-xl border border-dashed border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-3 py-2 text-sm font-semibold text-[var(--text-secondary)] transition-all duration-150 ease-out hover:-translate-y-[1px] hover:border-[rgba(37,99,235,0.24)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(37,99,235,0.2)]"
-            whileTap={{ scale: 0.96 }}
-            onClick={addEntry}
-          >
-            + 添加变量
-          </motion.button>
+    <div className="flex h-full min-h-0 flex-col gap-5 overflow-hidden">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">Environment</p>
+          <h3 className="mt-1 text-xl font-semibold text-[var(--text-primary)]">环境变量管理</h3>
+          <p className="text-sm text-[var(--text-secondary)]">
+            仅供查看，来自系统/用户配置文件（{flattenedCount} 项）。
+          </p>
         </div>
+        <motion.button
+          type="button"
+          className={clsx(BUTTON_GHOST, "px-4 py-2 text-sm")}
+          whileTap={{ scale: 0.95 }}
+          onClick={fetchSources}
+          disabled={loading}
+        >
+          {loading ? "读取中…" : "重新加载"}
+        </motion.button>
+      </header>
 
-        <section className="flex flex-col gap-3">
-          <header className="flex flex-wrap items-center justify-between gap-3 text-sm font-semibold text-[var(--text-secondary)]">
-            <span>{shell === "powershell" ? "PowerShell 脚本" : "Shell 脚本"}</span>
-            <button
-              type="button"
-              onClick={handleCopy}
-              disabled={!scriptText}
-              className={clsx(
-                "inline-flex items-center justify-center rounded-lg border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-secondary)] transition-all duration-150 ease-out",
-                "hover:-translate-y-[1px] hover:border-[rgba(37,99,235,0.24)] hover:text-[var(--text-primary)]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(37,99,235,0.25)]",
-                "disabled:cursor-not-allowed disabled:opacity-60"
-              )}
-            >
-              {scriptText ? "复制脚本" : "无可导出变量"}
-            </button>
-          </header>
-          <textarea
-            spellCheck={false}
-            readOnly
-            value={scriptText}
-            className="min-h-[160px] w-full rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-3 font-mono text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[rgba(37,99,235,0.2)]"
-          />
-        </section>
+      <div className="flex-1 min-h-0">
+        {error ? (
+          <div className={clsx(PANEL_RESULT, "text-sm text-[var(--negative)]")}>{error}</div>
+        ) : loading ? (
+          <div className={clsx(PANEL_RESULT, PANEL_MUTED)}>正在读取环境变量，请稍候…</div>
+        ) : sources.length === 0 ? (
+          <div className={clsx(PANEL_RESULT, PANEL_MUTED)}>未发现可读取的配置文件。</div>
+        ) : (
+          <div className="scroll-area flex h-full flex-col gap-4 overflow-auto pr-3">
+            <EnvSection
+              title="键值变量"
+              emptyText="没有可显示的键值对。"
+              entries={pairEntries}
+              copiedKey={copiedKey}
+              onCopy={handleCopy}
+            />
+            <EnvSection
+              title="路径变量"
+              emptyText="没有可显示的路径变量。"
+              entries={pathEntries}
+              copiedKey={copiedKey}
+              onCopy={handleCopy}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function sanitizeKey(value: string): string {
-  return value.trim().replace(/[^A-Za-z0-9_]/g, "_");
-}
+type EnvSectionProps = {
+  title: string;
+  emptyText: string;
+  entries: DisplayEntry[];
+  copiedKey: string | null;
+  onCopy: (value: string, key: string) => void;
+};
 
-function escapeQuotes(value: string): string {
-  return value.replace(/"/g, '\\"');
-}
-
-function createId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
+function EnvSection({ title, emptyText, entries, copiedKey, onCopy }: EnvSectionProps) {
+  if (entries.length === 0) {
+    return (
+      <section className="rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] p-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium uppercase tracking-[0.24em] text-[var(--text-tertiary)]">{title}</span>
+          <span className="text-xs text-[var(--text-tertiary)]">0 项</span>
+        </div>
+        <div className={clsx(PANEL_RESULT, PANEL_MUTED, "mt-3")}>{emptyText}</div>
+      </section>
+    );
   }
-  return Math.random().toString(36).slice(2, 10);
+  return (
+    <section className="rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium uppercase tracking-[0.24em] text-[var(--text-tertiary)]">{title}</span>
+        <span className="text-xs text-[var(--text-tertiary)]">{entries.length} 项</span>
+      </div>
+      <div className="mt-3 flex flex-col gap-2">
+        {entries.map((entry) => {
+          const entryKey = `${title}:${entry.source}:${entry.key}`;
+          return (
+            <div
+              key={entryKey}
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-[rgba(15,23,42,0.08)] bg-white px-3 py-2 shadow-sm"
+            >
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="text-xs font-mono uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
+                  {entry.key}
+                </span>
+                <span className="font-mono text-sm text-[var(--text-primary)] break-all">{entry.value}</span>
+                <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+                  {entry.source}
+                </span>
+              </div>
+              <motion.button
+                type="button"
+                className={clsx(BUTTON_PRIMARY, "px-3 py-1 text-xs")}
+                whileTap={{ scale: entry.value ? 0.95 : 1 }}
+                disabled={!entry.value}
+                onClick={() => entry.value && onCopy(entry.value, entryKey)}
+              >
+                {copiedKey === entryKey ? "已复制" : "复制"}
+              </motion.button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function flattenEntries(sources: EnvSource[]) {
+  const pathEntries: DisplayEntry[] = [];
+  const pairEntries: DisplayEntry[] = [];
+  sources.forEach((source) => {
+    source.entries.forEach((entry) => {
+      const bucket = isPathValue(entry.key, entry.value) ? pathEntries : pairEntries;
+      bucket.push({
+        source: source.source,
+        key: entry.key,
+        value: entry.value,
+      });
+    });
+  });
+  return { pathEntries, pairEntries };
+}
+
+function isPathValue(key: string, value: string) {
+  const keyUpper = key.toUpperCase();
+  if (
+    keyUpper === "PATH" ||
+    keyUpper.endsWith("_PATH") ||
+    keyUpper.endsWith("_DIR") ||
+    keyUpper.includes("PATH") ||
+    keyUpper.includes("DIR")
+  ) {
+    return true;
+  }
+  if (!value) {
+    return false;
+  }
+  return valueLooksLikePath(value);
+}
+
+function valueLooksLikePath(rawValue: string) {
+  if (!rawValue) {
+    return false;
+  }
+  const normalized = rawValue
+    .trim()
+    .replace(/^\s*(eval|source)\s+/i, "")
+    .replace(/^\s*\.\s+/, "")
+    .replace(/\$\((.*?)\)/g, " $1 ")
+    .replace(/\$\{?HOME\}?/gi, "~/")
+    .replace(/["']/g, "");
+
+  const tokens = normalized
+    .split(/[\s:;]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  if (tokens.some((token) => isPathToken(token) && !looksLikeUrl(token))) {
+    return true;
+  }
+  if ((normalized.includes("/") || normalized.includes("\\")) && !looksLikeUrl(normalized)) {
+    return true;
+  }
+  return false;
+}
+
+function isPathToken(token: string) {
+  if (!token) {
+    return false;
+  }
+  if (
+    token.startsWith("/") ||
+    token.startsWith("./") ||
+    token.startsWith("../") ||
+    token.startsWith("~") ||
+    token.startsWith("$HOME") ||
+    token.startsWith("%") ||
+    /^[A-Za-z]:/.test(token) ||
+    token.includes("\\")
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function looksLikeUrl(token: string) {
+  if (!token) {
+    return false;
+  }
+  const lower = token.toLowerCase();
+  return lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("ssh://");
 }

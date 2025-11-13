@@ -71,15 +71,15 @@ export const modules: ModuleMeta[] = [
         status: "ready"
       },
       {
-        id: "file-hash",
-        name: "文件 Hash",
-        description: "选择文件后生成 MD5 / SHA256 摘要。",
-        status: "ready"
-      },
-      {
         id: "base64",
         name: "Base64 编解码",
         description: "快速进行 Base64 加解密。",
+        status: "ready"
+      },
+      {
+        id: "url-codec",
+        name: "URL 编解码",
+        description: "快速进行 URL 编码与解码。",
         status: "ready"
       },
       {
@@ -89,9 +89,9 @@ export const modules: ModuleMeta[] = [
         status: "ready"
       },
       {
-        id: "url-codec",
-        name: "URL 编解码",
-        description: "快速进行 URL 编码与解码。",
+        id: "file-hash",
+        name: "文件 Hash",
+        description: "选择文件后生成 MD5 / SHA256 摘要。",
         status: "ready"
       }
     ]
