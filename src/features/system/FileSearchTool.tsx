@@ -1,7 +1,7 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { homeDir } from "@tauri-apps/api/path";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 import {
   BUTTON_GHOST,
@@ -47,7 +47,6 @@ export function FileSearchTool() {
   const [basePath, setBasePath] = useState("");
   const [extraPaths, setExtraPaths] = useState<string[]>([]);
   const [limitInput, setLimitInput] = useState("200");
-  const [depthInput, setDepthInput] = useState("");
   const [sizeMin, setSizeMin] = useState("");
   const [sizeMinUnit, setSizeMinUnit] = useState<SizeUnit>("MB");
   const [sizeMax, setSizeMax] = useState("");
@@ -56,10 +55,9 @@ export function FileSearchTool() {
   const [createdBefore, setCreatedBefore] = useState("");
   const [modifiedAfter, setModifiedAfter] = useState("");
   const [modifiedBefore, setModifiedBefore] = useState("");
-  const [includeHidden, setIncludeHidden] = useState(false);
-  const [caseSensitive, setCaseSensitive] = useState(false);
-  const [strictMatch, setStrictMatch] = useState(false);
-  const [sortBySimilarity, setSortBySimilarity] = useState(true);
+  const [isSizeModalOpen, setSizeModalOpen] = useState(false);
+  const [isCreatedModalOpen, setCreatedModalOpen] = useState(false);
+  const [isModifiedModalOpen, setModifiedModalOpen] = useState(false);
   const [isSearching, setSearching] = useState(false);
   const [result, setResult] = useState<FileSearchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -89,11 +87,6 @@ export function FileSearchTool() {
     const parsed = parseInt(limitInput, 10);
     return Number.isFinite(parsed) ? Math.min(parsed, MAX_RESULTS) : undefined;
   }, [limitInput]);
-
-  const depthValue = useMemo(() => {
-    const parsed = parseInt(depthInput, 10);
-    return Number.isFinite(parsed) ? Math.max(parsed, 0) : undefined;
-  }, [depthInput]);
 
   const handlePickBase = useCallback(async () => {
     try {
@@ -136,6 +129,23 @@ export function FileSearchTool() {
     setExtraPaths((paths) => paths.filter((path) => path !== target));
   }, []);
 
+  const clearSizeFilter = useCallback(() => {
+    setSizeMin("");
+    setSizeMinUnit("MB");
+    setSizeMax("");
+    setSizeMaxUnit("GB");
+  }, []);
+
+  const clearCreatedFilter = useCallback(() => {
+    setCreatedAfter("");
+    setCreatedBefore("");
+  }, []);
+
+  const clearModifiedFilter = useCallback(() => {
+    setModifiedAfter("");
+    setModifiedBefore("");
+  }, []);
+
   const formatBytes = useCallback((value?: number) => {
     if (!value || value <= 0) return "-";
     const units = ["B", "KB", "MB", "GB", "TB"];
@@ -149,6 +159,31 @@ export function FileSearchTool() {
     const date = new Date(timestamp * 1000);
     return date.toLocaleString();
   }, []);
+
+  const formatTimeLabel = useCallback((value: string) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toLocaleString();
+  }, []);
+
+  const buildTimeSummary = useCallback(
+    (afterValue: string, beforeValue: string) => {
+      if (!afterValue && !beforeValue) {
+        return "未设置";
+      }
+      if (afterValue && beforeValue) {
+        return `${formatTimeLabel(afterValue)} ~ ${formatTimeLabel(beforeValue)}`;
+      }
+      if (afterValue) {
+        return `≥ ${formatTimeLabel(afterValue)}`;
+      }
+      return `≤ ${formatTimeLabel(beforeValue)}`;
+    },
+    [formatTimeLabel]
+  );
 
   const convertToBytes = useCallback((value: number, unit: SizeUnit) => {
     const index = SIZE_UNITS.indexOf(unit);
@@ -184,6 +219,33 @@ export function FileSearchTool() {
       .then(() => setCopiedPath(path))
       .catch(() => setCopiedPath(path));
   }, []);
+
+  const sizeSummary = useMemo(() => {
+    if (!sizeMin && !sizeMax) {
+      return "未设置";
+    }
+    if (sizeMin && sizeMax) {
+      return `${sizeMin}${sizeMinUnit} ~ ${sizeMax}${sizeMaxUnit}`;
+    }
+    if (sizeMin) {
+      return `≥ ${sizeMin}${sizeMinUnit}`;
+    }
+    return `≤ ${sizeMax}${sizeMaxUnit}`;
+  }, [sizeMax, sizeMaxUnit, sizeMin, sizeMinUnit]);
+
+  const createdSummary = useMemo(
+    () => buildTimeSummary(createdAfter, createdBefore),
+    [buildTimeSummary, createdAfter, createdBefore]
+  );
+
+  const modifiedSummary = useMemo(
+    () => buildTimeSummary(modifiedAfter, modifiedBefore),
+    [buildTimeSummary, modifiedAfter, modifiedBefore]
+  );
+
+  const hasSizeFilter = Boolean(sizeMin || sizeMax);
+  const hasCreatedFilter = Boolean(createdAfter || createdBefore);
+  const hasModifiedFilter = Boolean(modifiedAfter || modifiedBefore);
 
   const handleSearch = useCallback(async () => {
     if (!query.trim()) {
@@ -233,11 +295,6 @@ export function FileSearchTool() {
         location: basePath.trim() || undefined,
         moreLocations: extraPaths,
         limit: limitValue,
-        depth: depthValue,
-        includeHidden,
-        caseSensitive,
-        strict: strictMatch,
-        sortBySimilarity,
         sizeMin: sizeMinFilter,
         sizeMax: sizeMaxFilter,
         createdAfter: createdAfterValue,
@@ -255,10 +312,7 @@ export function FileSearchTool() {
     }
   }, [
     basePath,
-    caseSensitive,
-    depthValue,
     extraPaths,
-    includeHidden,
     limitValue,
     parseDateInput,
     buildSizeFilter,
@@ -268,8 +322,6 @@ export function FileSearchTool() {
     sizeMin,
     sizeMinUnit,
     query,
-    sortBySimilarity,
-    strictMatch,
     createdAfter,
     createdBefore,
     modifiedAfter,
@@ -289,32 +341,25 @@ export function FileSearchTool() {
     setQuery("");
     setExtraPaths([]);
     setLimitInput("200");
-    setDepthInput("");
-    setSizeMin("");
-    setSizeMinUnit("MB");
-    setSizeMax("");
-    setSizeMaxUnit("GB");
-    setCreatedAfter("");
-    setCreatedBefore("");
-    setModifiedAfter("");
-    setModifiedBefore("");
-    setIncludeHidden(false);
-    setCaseSensitive(false);
-    setStrictMatch(false);
-    setSortBySimilarity(true);
+    clearSizeFilter();
+    clearCreatedFilter();
+    clearModifiedFilter();
+    setSizeModalOpen(false);
+    setCreatedModalOpen(false);
+    setModifiedModalOpen(false);
     setResult(null);
     setError(null);
-  }, []);
+  }, [clearCreatedFilter, clearModifiedFilter, clearSizeFilter]);
 
   const hasResults = result && result.hits.length > 0;
 
   return (
-    <section className={clsx(PANEL_CONTAINER, "gap-8")}>
+    <section className={clsx(PANEL_CONTAINER, "gap-6")}>
       <header className={PANEL_HEADER}>
         <div>
           <span className="text-xs uppercase tracking-[0.32em] text-[var(--text-tertiary)]">System Search</span>
           <h3 className={PANEL_TITLE}>全局文件搜索</h3>
-          <p className={PANEL_DESCRIPTION}>依托 rust_search 在本地磁盘内快速定位文件，可设置根目录、扫描深度与隐藏文件策略。</p>
+          <p className={PANEL_DESCRIPTION}>依托 rust_search 快速定位文件，可配置根目录、结果数与体积 / 时间筛选条件。</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <motion.button type="button" className={BUTTON_GHOST} whileTap={{ scale: 0.97 }} onClick={resetForm}>
@@ -345,35 +390,43 @@ export function FileSearchTool() {
         </div>
       </header>
 
-      <form className="grid gap-6" onSubmit={handleSubmit}>
-        <div className={clsx(PANEL_BLOCK, "gap-4")}>
-          <label className={PANEL_LABEL}>搜索关键字</label>
-          <input
-            className={PANEL_INPUT}
-            placeholder="请输入文件名或关键字"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-[1.6fr_0.4fr]">
-          <div className={PANEL_BLOCK}>
-            <label className={PANEL_LABEL}>根目录</label>
-            <div className="flex flex-wrap gap-3">
-              <input
-                className={clsx(PANEL_INPUT, "flex-1 min-w-[240px]")}
-                placeholder="例如 /Users/alice"
-                value={basePath}
-                onChange={(event) => setBasePath(event.target.value)}
-              />
-              <motion.button type="button" className={BUTTON_GHOST} whileTap={{ scale: 0.97 }} onClick={handlePickBase}>
-                <FolderOpen className="mr-2 h-4 w-4" />
-                选择文件夹
-              </motion.button>
-            </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
+        <form
+          className="flex flex-col gap-6 rounded-2xl border border-[color:var(--border-subtle)] bg-white/80 p-5 shadow-sm"
+          onSubmit={handleSubmit}
+        >
+          <div className={clsx(PANEL_BLOCK, "gap-4")}>
+            <label className={PANEL_LABEL}>搜索关键字</label>
+            <input
+              className={PANEL_INPUT}
+              placeholder="请输入文件名或关键字"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4">
+            <div className={PANEL_BLOCK}>
+              <label className={PANEL_LABEL}>根目录</label>
+              <div className="flex flex-wrap gap-3">
+                <input
+                  className={clsx(PANEL_INPUT, "flex-1 min-w-[240px]")}
+                  placeholder="例如 /Users/alice"
+                  value={basePath}
+                  onChange={(event) => setBasePath(event.target.value)}
+                />
+                <motion.button
+                  type="button"
+                  className={BUTTON_GHOST}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handlePickBase}
+                >
+                  <FolderOpen className="mr-2 h-4 w-4" />
+                  选择文件夹
+                </motion.button>
+              </div>
+            </div>
+
             <div>
               <label className={PANEL_LABEL}>最大结果数</label>
               <input
@@ -385,97 +438,185 @@ export function FileSearchTool() {
                 onChange={(event) => setLimitInput(event.target.value)}
               />
             </div>
-            <div>
-              <label className={PANEL_LABEL}>递归深度（可选）</label>
-              <input
-                type="number"
-                min={0}
-                className={PANEL_INPUT}
-                placeholder="无限制"
-                value={depthInput}
-                onChange={(event) => setDepthInput(event.target.value)}
-              />
-            </div>
           </div>
-        </div>
 
-        <div className={PANEL_BLOCK}>
-          <div className="flex items-center justify-between">
-            <label className={PANEL_LABEL}>额外检索目录</label>
-            <motion.button type="button" className={BUTTON_GHOST} whileTap={{ scale: 0.97 }} onClick={handleAddExtraPath}>
-              <FolderOpen className="mr-2 h-4 w-4" />
-              添加目录
-            </motion.button>
-          </div>
-          {extraPaths.length === 0 && (
-            <p className="text-sm text-[var(--text-tertiary)]">尚未指定额外范围，默认仅搜索根目录。</p>
-          )}
-          {extraPaths.length > 0 && (
-            <div className="flex flex-wrap gap-3">
-              {extraPaths.map((path) => (
-                <span
-                  key={path}
-                  className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-3 py-1.5 text-xs text-[var(--text-secondary)]"
-                >
-                  <span className="max-w-[220px] truncate" title={path}>
-                    {path}
-                  </span>
-                  <button
-                    type="button"
-                    className="text-[var(--text-tertiary)] transition hover:text-[var(--negative)]"
-                    onClick={() => handleRemoveExtra(path)}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="flex items-center gap-3 rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-4 py-3 text-sm text-[var(--text-secondary)]">
-            <input
-              type="checkbox"
-              checked={includeHidden}
-              onChange={(event) => setIncludeHidden(event.target.checked)}
-              className="h-4 w-4 rounded border-[color:var(--border-subtle)] text-[var(--accent)] focus:ring-[var(--accent)]"
-            />
-            包含隐藏文件
-          </label>
-          <label className="flex items-center gap-3 rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-4 py-3 text-sm text-[var(--text-secondary)]">
-            <input
-              type="checkbox"
-              checked={caseSensitive}
-              onChange={(event) => setCaseSensitive(event.target.checked)}
-              className="h-4 w-4 rounded border-[color:var(--border-subtle)] text-[var(--accent)] focus:ring-[var(--accent)]"
-            />
-            区分大小写
-          </label>
-          <label className="flex items-center gap-3 rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-4 py-3 text-sm text-[var(--text-secondary)]">
-            <input
-              type="checkbox"
-              checked={strictMatch}
-              onChange={(event) => setStrictMatch(event.target.checked)}
-              className="h-4 w-4 rounded border-[color:var(--border-subtle)] text-[var(--accent)] focus:ring-[var(--accent)]"
-            />
-            仅匹配完整文件名
-          </label>
-          <label className="flex items-center gap-3 rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-4 py-3 text-sm text-[var(--text-secondary)]">
-            <input
-              type="checkbox"
-              checked={sortBySimilarity}
-              onChange={(event) => setSortBySimilarity(event.target.checked)}
-              className="h-4 w-4 rounded border-[color:var(--border-subtle)] text-[var(--accent)] focus:ring-[var(--accent)]"
-            />
-            相似度排序
-          </label>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
           <div className={PANEL_BLOCK}>
-            <label className={PANEL_LABEL}>最小文件体积</label>
-            <div className="flex gap-2">
+            <div className="flex items-center justify-between">
+              <label className={PANEL_LABEL}>额外检索目录</label>
+              <motion.button
+                type="button"
+                className={BUTTON_GHOST}
+                whileTap={{ scale: 0.97 }}
+                onClick={handleAddExtraPath}
+              >
+                <FolderOpen className="mr-2 h-4 w-4" />
+                添加目录
+              </motion.button>
+            </div>
+            {extraPaths.length === 0 && (
+              <p className="text-sm text-[var(--text-tertiary)]">尚未指定额外范围，默认仅搜索根目录。</p>
+            )}
+            {extraPaths.length > 0 && (
+              <div className="flex flex-wrap gap-3">
+                {extraPaths.map((path) => (
+                  <span
+                    key={path}
+                    className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-3 py-1.5 text-xs text-[var(--text-secondary)]"
+                  >
+                    <span className="max-w-[220px] truncate" title={path}>
+                      {path}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-[var(--text-tertiary)] transition hover:text-[var(--negative)]"
+                      onClick={() => handleRemoveExtra(path)}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              className={clsx(
+                "flex min-h-[96px] flex-col rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-4 text-left transition hover:border-[var(--accent)] hover:bg-white",
+                hasSizeFilter && "border-[var(--accent)] shadow-[0_10px_30px_rgba(37,99,235,0.08)]"
+              )}
+              onClick={() => setSizeModalOpen(true)}
+            >
+              <span className="text-sm font-semibold text-[var(--text-primary)]">体积筛选</span>
+              <span className={clsx("text-xs", hasSizeFilter ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]")}>
+                {sizeSummary}
+              </span>
+            </button>
+            <button
+              type="button"
+              className={clsx(
+                "flex min-h-[96px] flex-col rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-4 text-left transition hover:border-[var(--accent)] hover:bg-white",
+                hasCreatedFilter && "border-[var(--accent)] shadow-[0_10px_30px_rgba(37,99,235,0.08)]"
+              )}
+              onClick={() => setCreatedModalOpen(true)}
+            >
+              <span className="text-sm font-semibold text-[var(--text-primary)]">创建时间筛选</span>
+              <span
+                className={clsx("text-xs", hasCreatedFilter ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]")}
+              >
+                {createdSummary}
+              </span>
+            </button>
+            <button
+              type="button"
+              className={clsx(
+                "flex min-h-[96px] flex-col rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-4 text-left transition hover:border-[var(--accent)] hover:bg-white",
+                hasModifiedFilter && "border-[var(--accent)] shadow-[0_10px_30px_rgba(37,99,235,0.08)]"
+              )}
+              onClick={() => setModifiedModalOpen(true)}
+            >
+              <span className="text-sm font-semibold text-[var(--text-primary)]">修改时间筛选</span>
+              <span
+                className={clsx("text-xs", hasModifiedFilter ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]")}
+              >
+                {modifiedSummary}
+              </span>
+            </button>
+          </div>
+
+          {error && (
+            <div className="rounded-xl border border-[rgba(220,38,38,0.25)] bg-[rgba(254,226,226,0.4)] px-4 py-3 text-sm text-[var(--negative)]">
+              {error}
+            </div>
+          )}
+
+          <motion.button
+            type="submit"
+            className={clsx(BUTTON_PRIMARY, "w-full justify-center text-base")}
+            whileTap={{ scale: 0.98 }}
+            disabled={isSearching}
+          >
+            {isSearching ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                正在检索…
+              </>
+            ) : (
+              <>
+                <Search className="mr-2 h-5 w-5" />
+                立即搜索
+              </>
+            )}
+          </motion.button>
+        </form>
+
+        <div className="flex h-full flex-col gap-4 rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-5">
+          <header className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">搜索结果</p>
+              <p className="text-xs text-[var(--text-tertiary)]">{result ? `使用路径 ${result.baseLocation}` : "等待搜索…"}</p>
+            </div>
+            {result && (
+              <div className="text-xs text-[var(--text-tertiary)]">
+                <span className="mr-4">耗时 {result.durationMs} ms</span>
+                <span>命中 {result.hits.length} 条</span>
+              </div>
+            )}
+          </header>
+
+          {!hasResults && (
+            <div className={PANEL_RESULT}>
+              <p className="text-sm text-[var(--text-tertiary)]">暂无结果，试试更短的关键字或调整检索范围。</p>
+            </div>
+          )}
+
+          {hasResults && (
+            <ul className="flex max-h-[420px] flex-col gap-3 overflow-y-auto pr-1">
+              {result!.hits.map((hit) => (
+                <li
+                  key={hit.path}
+                  className="flex flex-col gap-2 rounded-2xl border border-[color:var(--border-subtle)] bg-white/80 px-4 py-3 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">{hit.fileName}</p>
+                      <p className="text-xs text-[var(--text-tertiary)]" title={hit.parentDir}>
+                        {hit.parentDir}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded-full border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] p-1 text-[var(--text-tertiary)] transition hover:text-[var(--accent)]"
+                        onClick={() => handleCopyPath(hit.path)}
+                      >
+                        {copiedPath === hit.path ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-4 text-xs text-[var(--text-secondary)]">
+                    <span>类型：{hit.isDir ? "文件夹" : "文件"}</span>
+                    <span>大小：{hit.isDir ? "-" : formatBytes(hit.size)}</span>
+                    <span>修改时间：{formatDate(hit.modified)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <FilterModal
+        open={isSizeModalOpen}
+        title="体积筛选"
+        description="设置最小与最大体积，支持 B / KB / MB / GB / TB"
+        onClose={() => setSizeModalOpen(false)}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className={PANEL_LABEL}>最小体积</p>
+            <div className="mt-2 flex gap-2">
               <input
                 className={clsx(PANEL_INPUT, "flex-1 min-w-[150px]")}
                 type="number"
@@ -497,9 +638,9 @@ export function FileSearchTool() {
               </select>
             </div>
           </div>
-          <div className={PANEL_BLOCK}>
-            <label className={PANEL_LABEL}>最大文件体积</label>
-            <div className="flex gap-2">
+          <div>
+            <p className={PANEL_LABEL}>最大体积</p>
+            <div className="mt-2 flex gap-2">
               <input
                 className={clsx(PANEL_INPUT, "flex-1 min-w-[150px]")}
                 type="number"
@@ -522,120 +663,140 @@ export function FileSearchTool() {
             </div>
           </div>
         </div>
+        <div className="mt-6 flex justify-between gap-3">
+          <motion.button type="button" className={BUTTON_GHOST} whileTap={{ scale: 0.97 }} onClick={clearSizeFilter}>
+            清空条件
+          </motion.button>
+          <motion.button type="button" className={BUTTON_PRIMARY} whileTap={{ scale: 0.97 }} onClick={() => setSizeModalOpen(false)}>
+            完成
+          </motion.button>
+        </div>
+      </FilterModal>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className={PANEL_BLOCK}>
-            <label className={PANEL_LABEL}>创建时间范围</label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                type="datetime-local"
-                className={PANEL_INPUT}
-                value={createdAfter}
-                onChange={(event) => setCreatedAfter(event.target.value)}
-              />
-              <input
-                type="datetime-local"
-                className={PANEL_INPUT}
-                value={createdBefore}
-                onChange={(event) => setCreatedBefore(event.target.value)}
-              />
-            </div>
+      <FilterModal
+        open={isCreatedModalOpen}
+        title="创建时间筛选"
+        description="选择开始 / 结束时间范围"
+        onClose={() => setCreatedModalOpen(false)}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className={PANEL_LABEL}>不早于</p>
+            <input
+              type="datetime-local"
+              className={clsx(PANEL_INPUT, "mt-2")}
+              value={createdAfter}
+              onChange={(event) => setCreatedAfter(event.target.value)}
+            />
           </div>
-          <div className={PANEL_BLOCK}>
-            <label className={PANEL_LABEL}>修改时间范围</label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                type="datetime-local"
-                className={PANEL_INPUT}
-                value={modifiedAfter}
-                onChange={(event) => setModifiedAfter(event.target.value)}
-              />
-              <input
-                type="datetime-local"
-                className={PANEL_INPUT}
-                value={modifiedBefore}
-                onChange={(event) => setModifiedBefore(event.target.value)}
-              />
-            </div>
+          <div>
+            <p className={PANEL_LABEL}>不晚于</p>
+            <input
+              type="datetime-local"
+              className={clsx(PANEL_INPUT, "mt-2")}
+              value={createdBefore}
+              onChange={(event) => setCreatedBefore(event.target.value)}
+            />
           </div>
         </div>
+        <div className="mt-6 flex justify-between gap-3">
+          <motion.button type="button" className={BUTTON_GHOST} whileTap={{ scale: 0.97 }} onClick={clearCreatedFilter}>
+            清空条件
+          </motion.button>
+          <motion.button type="button" className={BUTTON_PRIMARY} whileTap={{ scale: 0.97 }} onClick={() => setCreatedModalOpen(false)}>
+            完成
+          </motion.button>
+        </div>
+      </FilterModal>
 
-        {error && <div className="rounded-xl border border-[rgba(220,38,38,0.25)] bg-[rgba(254,226,226,0.4)] px-4 py-3 text-sm text-[var(--negative)]">{error}</div>}
-
-        <motion.button
-          type="submit"
-          className={clsx(BUTTON_PRIMARY, "w-full justify-center text-base")}
-          whileTap={{ scale: 0.98 }}
-          disabled={isSearching}
-        >
-          {isSearching ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              正在检索…
-            </>
-          ) : (
-            <>
-              <Search className="mr-2 h-5 w-5" />
-              立即搜索
-            </>
-          )}
-        </motion.button>
-      </form>
-
-      <div className="flex flex-col gap-4 rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-4">
-        <header className="flex flex-wrap items-center justify-between gap-3">
+      <FilterModal
+        open={isModifiedModalOpen}
+        title="修改时间筛选"
+        description="选择开始 / 结束时间范围"
+        onClose={() => setModifiedModalOpen(false)}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <p className="text-sm font-semibold text-[var(--text-primary)]">搜索结果</p>
-            <p className="text-xs text-[var(--text-tertiary)]">{result ? `使用路径 ${result.baseLocation}` : "等待搜索…"}</p>
+            <p className={PANEL_LABEL}>不早于</p>
+            <input
+              type="datetime-local"
+              className={clsx(PANEL_INPUT, "mt-2")}
+              value={modifiedAfter}
+              onChange={(event) => setModifiedAfter(event.target.value)}
+            />
           </div>
-          {result && (
-            <div className="text-xs text-[var(--text-tertiary)]">
-              <span className="mr-4">耗时 {result.durationMs} ms</span>
-              <span>命中 {result.hits.length} 条</span>
-            </div>
-          )}
-        </header>
-
-        {!hasResults && (
-          <div className={PANEL_RESULT}>
-            <p className="text-sm text-[var(--text-tertiary)]">暂无结果，试试更短的关键字或调整检索范围。</p>
+          <div>
+            <p className={PANEL_LABEL}>不晚于</p>
+            <input
+              type="datetime-local"
+              className={clsx(PANEL_INPUT, "mt-2")}
+              value={modifiedBefore}
+              onChange={(event) => setModifiedBefore(event.target.value)}
+            />
           </div>
-        )}
-
-        {hasResults && (
-          <ul className="flex max-h-[360px] flex-col gap-3 overflow-y-auto pr-1">
-            {result!.hits.map((hit) => (
-              <li
-                key={hit.path}
-                className="flex flex-col gap-2 rounded-2xl border border-[color:var(--border-subtle)] bg-white/80 px-4 py-3 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-[var(--text-primary)]">{hit.fileName}</p>
-                    <p className="text-xs text-[var(--text-tertiary)]" title={hit.parentDir}>
-                      {hit.parentDir}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="rounded-full border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] p-1 text-[var(--text-tertiary)] transition hover:text-[var(--accent)]"
-                      onClick={() => handleCopyPath(hit.path)}
-                    >
-                      {copiedPath === hit.path ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-4 text-xs text-[var(--text-secondary)]">
-                  <span>类型：{hit.isDir ? "文件夹" : "文件"}</span>
-                  <span>大小：{hit.isDir ? "-" : formatBytes(hit.size)}</span>
-                  <span>修改时间：{formatDate(hit.modified)}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+        </div>
+        <div className="mt-6 flex justify-between gap-3">
+          <motion.button type="button" className={BUTTON_GHOST} whileTap={{ scale: 0.97 }} onClick={clearModifiedFilter}>
+            清空条件
+          </motion.button>
+          <motion.button
+            type="button"
+            className={BUTTON_PRIMARY}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => setModifiedModalOpen(false)}
+          >
+            完成
+          </motion.button>
+        </div>
+      </FilterModal>
     </section>
+  );
+}
+
+type FilterModalProps = {
+  open: boolean;
+  title: string;
+  description?: string;
+  onClose: () => void;
+  children: ReactNode;
+};
+
+function FilterModal({ open, title, description, onClose, children }: FilterModalProps) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+        >
+          <motion.div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+          <motion.div
+            className="relative z-[71] w-full max-w-lg rounded-2xl border border-[color:var(--border-subtle)] bg-white p-6 shadow-2xl"
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-base font-semibold text-[var(--text-primary)]">{title}</p>
+                {description && <p className="mt-1 text-sm text-[var(--text-tertiary)]">{description}</p>}
+              </div>
+              <button
+                type="button"
+                className="rounded-full border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] p-2 text-[var(--text-tertiary)] transition hover:text-[var(--text-primary)]"
+                onClick={onClose}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4">{children}</div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

@@ -3,13 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { Check, Copy, Pipette, Trash2 } from "lucide-react";
 import clsx from "clsx";
-import {
-  BUTTON_GHOST,
-  BUTTON_PRIMARY,
-  PANEL_CONTAINER,
-  PANEL_DESCRIPTION,
-  PANEL_TITLE
-} from "../../ui/styles";
+import { BUTTON_GHOST, BUTTON_PRIMARY, PANEL_TITLE } from "../../ui/styles";
 
 const COLOR_HISTORY_KEY = "chef-color-history";
 const MAX_HISTORY = 24;
@@ -84,6 +78,15 @@ const normalizeHex = (value: string) => {
   return trimmed;
 };
 
+const hexToRgb = (hex: string) => {
+  if (!isHexColor(hex)) return null;
+  const raw = hex.replace("#", "");
+  const r = parseInt(raw.slice(0, 2), 16);
+  const g = parseInt(raw.slice(2, 4), 16);
+  const b = parseInt(raw.slice(4, 6), 16);
+  return { r, g, b };
+};
+
 const getContrastColor = (hex: string) => {
   if (!isHexColor(hex)) {
     return "#fff";
@@ -131,6 +134,18 @@ export function ColorPickerTool() {
       [...history].sort((a, b) => b.pickedAt - a.pickedAt).slice(0, MAX_HISTORY),
     [history]
   );
+  const colorFormats = useMemo(() => {
+    const rgb = hexToRgb(currentColor);
+    if (!rgb) {
+      return [{ label: "16进制", value: currentColor }];
+    }
+    const { r, g, b } = rgb;
+    return [
+      { label: "16进制", value: currentColor },
+      { label: "RGB", value: `${r}, ${g}, ${b}` },
+      { label: "CSS函数", value: `rgb(${r} ${g} ${b})` }
+    ];
+  }, [currentColor]);
   const showPickerWarning = nativePickerState === "unavailable" && !hasEyeDropper;
 
   const persistColor = useCallback((value: string) => {
@@ -243,18 +258,13 @@ export function ColorPickerTool() {
   };
 
   return (
-    <section className={clsx(PANEL_CONTAINER, "gap-5")}>
+    <section className="flex flex-col gap-5">
       <header className="flex flex-col gap-1">
         <span className="text-xs uppercase tracking-[0.28em] text-[var(--text-tertiary)]">
           Color Picker
         </span>
         <h3 className={PANEL_TITLE}>取色器</h3>
       </header>
-
-      <p className={PANEL_DESCRIPTION}>
-        点击「启动取色」即可选取屏幕上的任意颜色，系统会自动记录最近拾取的色值并以方格展示，
-        方便快速复制或回溯。
-      </p>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="flex flex-col gap-4 rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-bg)] p-4">
@@ -318,23 +328,31 @@ export function ColorPickerTool() {
               {isPicking ? "取色中…" : "启动取色"}
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => handleCopy(currentColor)}
-            className={clsx(BUTTON_GHOST, "gap-2 px-3 py-2 text-sm")}
-          >
-            {copiedColor === currentColor ? (
-              <>
-                <Check className="h-4 w-4 text-[var(--accent)]" />
-                已复制
-              </>
-            ) : (
-              <>
-                <Copy className="h-4 w-4" />
-                复制当前色值
-              </>
-            )}
-          </button>
+          <div className="flex flex-col gap-2 rounded-xl border border-dashed border-[color:var(--border-subtle)] bg-white/60 p-3">
+            {colorFormats.map((format) => (
+              <div key={format.label} className="flex items-center gap-3">
+                <span className="w-16 text-xs font-medium text-[var(--text-secondary)]">{format.label}</span>
+                <span className="flex-1 truncate font-mono text-sm text-[var(--text-primary)]">{format.value}</span>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(format.value)}
+                  className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:text-[var(--accent)]"
+                >
+                  {copiedColor === format.value ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 text-[var(--accent)]" />
+                      已复制
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5" />
+                      复制
+                    </>
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -363,20 +381,20 @@ export function ColorPickerTool() {
             还没有记录，先去取一个颜色吧～
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="flex flex-nowrap gap-2 overflow-x-auto pb-2">
             {sortedHistory.map((entry) => (
               <motion.button
                 layoutId={entry.value}
                 key={entry.pickedAt}
                 type="button"
                 onClick={() => handleHistoryClick(entry.value)}
-                className="group relative aspect-square w-full overflow-hidden rounded-2xl border border-[rgba(15,23,42,0.1)] shadow-inner focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(37,99,235,0.35)]"
+                className="group relative h-16 w-16 min-w-[64px] overflow-hidden rounded-xl border border-[rgba(15,23,42,0.1)] shadow-inner focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(37,99,235,0.35)]"
                 style={{ backgroundColor: entry.value }}
                 whileTap={{ scale: 0.97 }}
               >
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[rgba(0,0,0,0.35)]" />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[rgba(0,0,0,0.28)]" />
                 <span
-                  className="pointer-events-none absolute bottom-2 left-2 rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em]"
+                  className="pointer-events-none absolute bottom-1 left-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
                   style={{ color: getContrastColor(entry.value), backgroundColor: "rgba(0,0,0,0.28)" }}
                 >
                   {entry.value}
