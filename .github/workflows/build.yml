@@ -54,6 +54,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.arch }}-apple-darwin
+
       - name: Build macOS app
         env:
           TAURI_BUILD_ARCH: ${{ matrix.arch }}
