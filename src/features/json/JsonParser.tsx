@@ -17,11 +17,6 @@ const DEFAULT_OPTIONS: ParserOptions = {
   stripSlashes: true
 };
 
-const primaryButtonClass =
-  "inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:bg-[var(--accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(37,99,235,0.35)]";
-const secondaryButtonClass =
-  "inline-flex items-center justify-center rounded-lg border border-[color:var(--border-subtle)] bg-[var(--surface-alt-bg)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-all duration-150 hover:border-[rgba(15,23,42,0.2)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(37,99,235,0.2)] disabled:cursor-not-allowed disabled:opacity-50";
-
 export function JsonParser() {
   const [input, setInput] = useState<string>("");
   const [formatted, setFormatted] = useState<string>("");
@@ -169,62 +164,52 @@ export function JsonParser() {
   }, [isSearchOpen]);
 
   return (
-    <div className="json-parser flex h-full min-h-0 flex-col gap-5 overflow-hidden rounded-2xl bg-[var(--panel-bg)] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-[var(--text-tertiary)]">
-            JSON
-          </p>
-          <h3 className="text-xl font-semibold text-[var(--text-primary)]">格式化编辑</h3>
+    <div className="flex h-full min-h-0 flex-col gap-4 text-sm text-zinc-600 dark:text-zinc-300">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200/70 pb-3 dark:border-zinc-800/70">
+          <div>
+            <h3 className="text-xl font-semibold text-zinc-900 dark:text-white">JSON 格式化</h3>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">输入 JSON 字符串并一键格式化或压缩。</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => handleTransform("pretty")}
+              disabled={!input}
+            >
+              格式化
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-lg border border-zinc-200/70 px-4 py-2 text-sm font-medium text-zinc-600 hover:border-orange-200 hover:text-orange-600 dark:border-zinc-700/70 dark:text-zinc-200"
+              onClick={handleCopy}
+              disabled={!formatted && !input}
+            >
+              {copied ? "已复制" : "复制"}
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className={primaryButtonClass}
-            onClick={() => handleTransform("pretty")}
-            disabled={!input}
-          >
-            格式化
-          </button>
-          <button
-            type="button"
-            className={secondaryButtonClass}
-            onClick={handleClear}
-            disabled={!input}
-          >
-            清空
-          </button>
-          <button
-            type="button"
-            className={secondaryButtonClass}
-            onClick={handleCopy}
-            disabled={!formatted && !input}
-          >
-            {copied ? "已复制" : "复制结果"}
-          </button>
-        </div>
-      </div>
 
-      <div className="grid flex-1 min-h-0 grid-cols-1 gap-5 overflow-hidden md:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)]">
-        <section className="flex min-h-0 flex-1 flex-col gap-3 px-1">
-          <div className="flex flex-wrap items-center justify-between gap-2 pr-0 text-xs uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
-            <span>原始文本</span>
-            <div className="flex items-center gap-2 text-[0.7rem] normal-case tracking-[0.05em]">
-              <button
-                type="button"
-                className="rounded-md border border-[color:var(--border-subtle)] px-3 py-1 text-[0.72rem] font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:bg-[var(--surface-alt-bg)] hover:text-[var(--accent)]"
-              >
-                支持非标准 JSON
-              </button>
-            </div>
+      <div className="grid flex-1 min-h-0 gap-4 lg:grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)]">
+        <section className="flex min-h-0 flex-col gap-3">
+          <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+            <span>原始 JSON</span>
+            <button
+              type="button"
+              className="rounded-full border border-zinc-200/70 px-3 py-1 text-[11px] text-zinc-500 hover:border-orange-200 hover:text-orange-500 dark:border-zinc-700/70 dark:text-zinc-300"
+              onClick={handleClear}
+              disabled={!input}
+            >
+              清空
+            </button>
           </div>
           {error && (
-            <div className="rounded-lg border border-[#fecaca] bg-[#fff1f2] px-3 py-2 text-sm text-[#b42318]">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
               {error}
             </div>
           )}
           <textarea
-            className="scroll-area flex-1 min-h-0 h-full resize-none rounded-md bg-[#fafafa] px-4 py-3 font-['JetBrains_Mono','SFMono-Regular',Menlo,monospace] text-[0.95rem] leading-[1.7] tracking-[0.01em] text-[var(--text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--accent)]/25 focus-visible:outline-none whitespace-pre-wrap break-words overflow-auto"
+            className="scroll-area flex-1 min-h-0 w-full resize-none rounded-xl border border-zinc-200/70 bg-white/70 px-4 py-3 font-['JetBrains_Mono','SFMono-Regular',Menlo,monospace] text-sm text-zinc-900 outline-none focus:border-orange-200 focus-visible:ring-2 focus-visible:ring-orange-500/20 dark:border-zinc-700/70 dark:bg-zinc-900/40 dark:text-zinc-100"
             spellCheck={false}
             value={input}
             onChange={(event) => {
@@ -235,33 +220,33 @@ export function JsonParser() {
           />
         </section>
 
-        <section className="flex min-h-0 flex-1 flex-col gap-3 px-1">
-          <div className="flex flex-wrap items-center justify-between gap-2 pr-0 text-xs uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+        <section className="flex min-h-0 flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
             <span>格式化结果</span>
-            <div className="flex flex-wrap items-center gap-2 text-[var(--text-secondary)]">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="rounded-md border border-[color:var(--border-subtle)] px-3 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:bg-[var(--surface-alt-bg)] hover:text-[var(--accent)]"
+                className="rounded-md border border-zinc-200/70 px-3 py-1 text-[11px] font-medium text-zinc-600 hover:border-orange-200 hover:text-orange-600 dark:border-zinc-700/70 dark:text-zinc-300"
                 onClick={handleExpandAll}
                 disabled={!previewValue}
               >
-                全部展开
+                展开全部
               </button>
               <button
                 type="button"
-                className="rounded-md border border-[color:var(--border-subtle)] px-3 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:bg-[var(--surface-alt-bg)] hover:text-[var(--accent)]"
+                className="rounded-md border border-zinc-200/70 px-3 py-1 text-[11px] font-medium text-zinc-600 hover:border-orange-200 hover:text-orange-600 dark:border-zinc-700/70 dark:text-zinc-300"
                 onClick={() => handleTransform("compact")}
                 disabled={!input}
               >
-                全部折叠
+                压缩文本
               </button>
             </div>
           </div>
-          <div className="relative flex-1 overflow-hidden rounded-md bg-[#fafafa] px-4 py-3">
+          <div className="relative flex-1 min-h-0">
             <button
               type="button"
               ref={searchButtonRef}
-              className="absolute right-4 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--border-subtle)] bg-white text-[var(--text-secondary)] shadow-sm transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
+              className="absolute right-3 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200/70 bg-white text-zinc-500 shadow-sm hover:border-orange-200 hover:text-orange-500 disabled:opacity-40 dark:border-zinc-700/70 dark:bg-zinc-900/60 dark:text-zinc-300"
               onClick={() => setIsSearchOpen((previous) => !previous)}
               aria-label="搜索字段"
               disabled={!previewValue}
@@ -274,11 +259,11 @@ export function JsonParser() {
             {isSearchOpen && (
               <div
                 ref={searchPanelRef}
-                className="absolute right-4 top-14 z-10 w-64 rounded-xl border border-[color:var(--border-subtle)] bg-white/95 p-3 text-sm text-[var(--text-primary)] shadow-lg backdrop-blur"
+                className="absolute right-0 top-12 z-20 w-60 rounded-xl border border-zinc-200/70 bg-white p-3 text-sm text-zinc-700 shadow-lg dark:border-zinc-700/70 dark:bg-zinc-900 dark:text-zinc-100"
               >
                 <input
                   type="text"
-                  className="w-full rounded-lg border border-[color:var(--border-subtle)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
+                  className="w-full rounded-lg border border-zinc-200/70 bg-white px-3 py-2 text-sm text-zinc-800 outline-none focus:border-orange-300 dark:border-zinc-700/70 dark:bg-zinc-900/60 dark:text-zinc-100"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   onKeyDown={(event) => {
@@ -287,17 +272,15 @@ export function JsonParser() {
                       handleSearchNext();
                     }
                   }}
-                  placeholder="搜索字段名"
+                  placeholder="字段名 / key"
                   autoFocus
                 />
-                <div className="mt-2 flex items-center justify-between text-[0.75rem] text-[var(--text-secondary)]">
-                  <span>
-                    {searchMatches.length ? `${activeMatchIndex + 1}/${searchMatches.length}` : "无匹配"}
-                  </span>
+                <div className="mt-2 flex items-center justify-between text-[12px] text-zinc-500 dark:text-zinc-400">
+                  <span>{searchMatches.length ? `${activeMatchIndex + 1}/${searchMatches.length}` : "无匹配"}</span>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[color:var(--border-subtle)] text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200/70 text-zinc-500 hover:border-orange-200 hover:text-orange-500 disabled:opacity-40 dark:border-zinc-700/70 dark:text-zinc-200"
                       onClick={handleSearchPrev}
                       disabled={!searchMatches.length}
                       aria-label="上一个匹配"
@@ -306,7 +289,7 @@ export function JsonParser() {
                     </button>
                     <button
                       type="button"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[color:var(--border-subtle)] text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200/70 text-zinc-500 hover:border-orange-200 hover:text-orange-500 disabled:opacity-40 dark:border-zinc-700/70 dark:text-zinc-200"
                       onClick={handleSearchNext}
                       disabled={!searchMatches.length}
                       aria-label="下一个匹配"
@@ -317,9 +300,9 @@ export function JsonParser() {
                 </div>
               </div>
             )}
-            <div className="scroll-area h-full overflow-auto pr-4 -mr-4">
+            <div className="scroll-area h-full overflow-auto rounded-xl border border-zinc-200/70 bg-white/70 p-4 pr-6 dark:border-zinc-700/70 dark:bg-zinc-900/40">
               {previewValue ? (
-                <JsonTreeView
+                <JsonTreeViewer
                   value={previewValue}
                   collapsed={collapsedPaths}
                   onToggle={handleToggleNode}
@@ -327,7 +310,9 @@ export function JsonParser() {
                   activeMatchPath={activeMatchPath}
                 />
               ) : (
-                <div className="text-sm text-[var(--text-tertiary)]">点击“格式化”或“载入示例”生成最新结果。</div>
+                <div className="flex h-full items-center justify-center text-sm text-zinc-400 dark:text-zinc-500">
+                  点击“格式化”即可查看结果。
+                </div>
               )}
             </div>
           </div>
@@ -373,7 +358,7 @@ function preprocessInput(raw: string, options: ParserOptions): string {
   return text;
 }
 
-type JsonTreeViewProps = {
+type JsonTreeViewerProps = {
   value: JsonValue;
   collapsed: Record<string, boolean>;
   onToggle: (path: string, nextCollapsed: boolean) => void;
@@ -381,7 +366,7 @@ type JsonTreeViewProps = {
   activeMatchPath: string | null;
 };
 
-function JsonTreeView({ value, collapsed, onToggle, matchedPaths, activeMatchPath }: JsonTreeViewProps) {
+function JsonTreeViewer({ value, collapsed, onToggle, matchedPaths, activeMatchPath }: JsonTreeViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -398,7 +383,7 @@ function JsonTreeView({ value, collapsed, onToggle, matchedPaths, activeMatchPat
   return (
     <div
       ref={containerRef}
-      className="font-mono text-[0.85rem] leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap break-words"
+      className="font-mono text-sm leading-relaxed text-zinc-700 dark:text-zinc-100"
     >
       <JsonNode
         value={value}
@@ -446,14 +431,14 @@ function JsonNode({
   const isActiveMatch = activeMatchPath === path;
 
   const keyClass = clsx(
-    "font-semibold text-[#2563eb]",
-    isMatched && "text-[#1d4ed8]",
-    isActiveMatch && "rounded-sm bg-[#dbeafe] px-1"
+    "font-semibold text-sky-500",
+    isMatched && "text-sky-400",
+    isActiveMatch && "rounded-md bg-sky-500/10 px-1 py-0.5 text-sky-300"
   );
   const valueClass = clsx(
     "font-medium",
     getValueTone(value),
-    isActiveMatch && "rounded-sm bg-[#ecfeff] px-1"
+    isActiveMatch && "rounded-md bg-orange-500/10 px-1 py-0.5"
   );
 
   if (!isCollection) {
@@ -462,13 +447,11 @@ function JsonNode({
         {parentType !== "array" && typeof name !== "undefined" && (
           <>
             <span className={keyClass}>"{String(name)}"</span>
-            <span className="text-[#94a3b8]">: </span>
+            <span className="text-zinc-400 dark:text-zinc-500">: </span>
           </>
         )}
-        <span className={valueClass}>
-          {formatPrimitive(value)}
-        </span>
-        {!isLast && <span className="text-[var(--text-secondary)]">,</span>}
+        <span className={valueClass}>{formatPrimitive(value)}</span>
+        {!isLast && <span className="text-zinc-400 dark:text-zinc-500">,</span>}
       </div>
     );
   }
@@ -481,10 +464,10 @@ function JsonNode({
   const defaultCollapsed = depth >= 2;
   const isCollapsed = collapsed[path] ?? defaultCollapsed;
   const toggleButtonClass =
-    "inline-flex h-5 w-5 items-center justify-center rounded-md border border-[color:var(--border-subtle)] bg-white text-[11px] font-semibold text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/15";
-  const bracketClass = "text-[#94a3b8]";
+    "inline-flex h-6 w-6 items-center justify-center rounded-md border border-zinc-200/80 bg-white/80 text-[11px] font-semibold text-zinc-400 transition hover:border-orange-200 hover:text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/20 dark:border-zinc-700/80 dark:bg-zinc-900/60 dark:text-zinc-300";
+  const bracketClass = "text-zinc-400 dark:text-zinc-500";
   const countBadgeClass =
-    "ml-2 inline-flex min-w-[26px] items-center justify-center rounded-sm bg-[#e0f2fe] px-2 py-[1px] text-[0.65rem] font-semibold text-[#0369a1]";
+    "ml-2 inline-flex min-w-[26px] items-center justify-center rounded-full bg-sky-500/10 px-2 py-[1px] text-[0.65rem] font-semibold text-sky-500";
 
   return (
     <div className="space-y-1">
@@ -500,17 +483,15 @@ function JsonNode({
         {parentType !== "array" && typeof name !== "undefined" && (
           <>
             <span className={keyClass}>"{String(name)}"</span>
-            <span className="text-[#94a3b8]">: </span>
+            <span className="text-zinc-400 dark:text-zinc-500">: </span>
           </>
         )}
         <span className={bracketClass}>{openingSymbol}</span>
-        {Array.isArray(value) && (
-          <span className={countBadgeClass}>{entries.length}</span>
-        )}
+        {Array.isArray(value) && <span className={countBadgeClass}>{entries.length}</span>}
         {isCollapsed && (
           <>
-            <span className="text-[var(--text-tertiary)]"> … </span>
-            <span className="text-[var(--text-secondary)]">
+            <span className="text-zinc-400 dark:text-zinc-600"> … </span>
+            <span className="text-zinc-400 dark:text-zinc-500">
               {closingSymbol}
               {!isLast && ","}
             </span>
@@ -536,7 +517,7 @@ function JsonNode({
           ))}
           <div className="leading-[1.55]" style={{ paddingLeft: indent }} data-path={`${path}.__closing`}>
             <span className={bracketClass}>{closingSymbol}</span>
-            {!isLast && <span className="text-[var(--text-secondary)]">,</span>}
+            {!isLast && <span className="text-zinc-400 dark:text-zinc-500">,</span>}
           </div>
         </>
       )}
@@ -570,17 +551,17 @@ function formatPrimitive(value: JsonValue): string {
 
 function getValueTone(value: JsonValue): string {
   if (value === null) {
-    return "text-[#94a3b8]";
+    return "text-zinc-400";
   }
   switch (typeof value) {
     case "string":
-      return "text-[#0ea5e9]";
+      return "text-emerald-500";
     case "number":
-      return "text-[#f97316]";
+      return "text-orange-400";
     case "boolean":
-      return "text-[#22c55e]";
+      return "text-blue-500";
     default:
-      return "text-[#475569]";
+      return "text-zinc-500";
   }
 }
 

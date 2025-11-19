@@ -84,6 +84,18 @@ const moduleIcons: Record<string, LucideIcon> = {
 
 const FAVORITES_STORAGE_KEY = "chef-favorites";
 
+function resolveInitialTheme(): "dark" | "light" {
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+  const stored = window.localStorage.getItem("chef-theme");
+  if (stored === "dark" || stored === "light") {
+    return stored;
+  }
+  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
+  return prefersDark ? "dark" : "light";
+}
+
 const sidebarListVariants: Variants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.03 } }
@@ -107,18 +119,20 @@ const contentVariants: Variants = {
 };
 
 const toolGridVariants: Variants = {
-  hidden: { opacity: 0, y: 24, scale: 0.96 },
+  hidden: { opacity: 0, y: 32, scale: 0.94, filter: "blur(4px)" },
   show: {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { duration: 0.28, ease: "easeOut" }
+    filter: "blur(0px)",
+    transition: { type: "spring", stiffness: 220, damping: 26 }
   },
   exit: {
     opacity: 0,
-    y: -16,
+    y: -20,
     scale: 0.98,
-    transition: { duration: 0.2, ease: "easeInOut" }
+    filter: "blur(3px)",
+    transition: { duration: 0.18, ease: "easeInOut" }
   }
 };
 
@@ -164,11 +178,12 @@ const isFavoriteSupported = (favorite: FavoriteToolRef) =>
   );
 
 export default function App() {
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">(resolveInitialTheme);
   const [searchTerm, setSearchTerm] = useState("");
   const [favoriteTools, setFavoriteTools] = useState<FavoriteToolRef[]>(() => buildDefaultFavorites());
   const [activeCategory, setActiveCategory] = useState<string>("favorites");
   const [activeToolRef, setActiveToolRef] = useState<FavoriteToolRef | null>(null);
+  const [isMacPlatform, setIsMacPlatform] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -203,19 +218,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const storedTheme = window.localStorage.getItem("chef-theme");
-    if (storedTheme === "dark" || storedTheme === "light") {
-      setTheme(storedTheme);
-      return;
-    }
-    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
-    setTheme(prefersDark ? "dark" : "light");
-  }, []);
-
-  useEffect(() => {
     const body = document.body;
     const root = document.documentElement;
     body.classList.remove("theme-dark", "theme-light");
@@ -236,6 +238,14 @@ export default function App() {
       const filtered = previous.filter(isFavoriteSupported);
       return filtered.length === previous.length ? previous : filtered;
     });
+  }, []);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined") {
+      return;
+    }
+    const platform = navigator.userAgent || navigator.platform || "";
+    setIsMacPlatform(/Mac|iPhone|iPad|iPod/i.test(platform));
   }, []);
 
   useEffect(() => {
@@ -369,16 +379,25 @@ export default function App() {
 
   const handleBackHome = useCallback(() => {
     setActiveToolRef(null);
+    setActiveCategory("favorites");
   }, []);
 
   const handleThemeToggle = useCallback(() => {
     setTheme((previous) => (previous === "dark" ? "light" : "dark"));
   }, []);
 
+  const handleBreadcrumbModuleClick = useCallback(() => {
+    if (!activeTool) {
+      return;
+    }
+    setActiveToolRef(null);
+    setActiveCategory(activeTool.module.id);
+  }, [activeTool]);
+
   return (
     <div
       className={clsx(
-        "flex h-screen font-sans antialiased transition-colors duration-500",
+        "flex h-screen w-full overflow-hidden font-sans antialiased transition-colors duration-500",
         isDark ? "bg-zinc-900 text-zinc-100" : "bg-zinc-50 text-zinc-900"
       )}
     >
@@ -387,7 +406,7 @@ export default function App() {
         animate={{ x: 0, opacity: 1 }}
         className="w-56 border-r border-zinc-200 dark:border-zinc-700/60 flex flex-col bg-white/80 dark:bg-zinc-800/90 backdrop-blur-xl z-20"
       >
-        <div className="p-4 pb-4">
+        <div className={clsx("px-4 pb-4", isMacPlatform ? "pt-10" : "pt-4")}>
           <div className="relative group">
             <Search
               size={16}
@@ -427,7 +446,7 @@ export default function App() {
 
         <div className="p-3 border-t border-zinc-200 dark:border-zinc-700/60 bg-zinc-50/50 dark:bg-zinc-800/50 backdrop-blur-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-600">v3.1.0</span>
+            <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-600">v0.1.1</span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -455,8 +474,8 @@ export default function App() {
         </div>
       </motion.aside>
 
-      <div className="flex-1 flex flex-col min-w-0 bg-zinc-50/50 dark:bg-zinc-900 relative transition-colors overflow-hidden">
-        <header className="h-14 border-b border-zinc-200 dark:border-zinc-700/60 flex items-center justify-between px-6 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-xl z-10 sticky top-0">
+      <div className="flex-1 min-h-0 flex flex-col min-w-0 bg-zinc-50/50 dark:bg-zinc-900 relative transition-colors overflow-hidden">
+        <header className="h-12 border-b border-zinc-200 dark:border-zinc-700/60 flex items-center justify-between px-4 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-xl z-10 sticky top-0">
           <div className="flex items-center text-sm text-zinc-500 gap-2">
             <button
               type="button"
@@ -466,47 +485,46 @@ export default function App() {
               <Home size={16} className="group-hover:text-orange-500 transition-colors" />
             </button>
             <ChevronRight size={14} className="opacity-30" />
-            <span
-              className={clsx(
-                "transition-colors",
-                !activeTool &&
-                  "text-zinc-900 dark:text-zinc-100 font-medium bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-md text-xs"
-              )}
-            >
-              {activeCategoryLabel}
-            </span>
+            {activeTool ? (
+              <button
+                type="button"
+                onClick={handleBreadcrumbModuleClick}
+                className="text-zinc-900 dark:text-zinc-100 font-medium bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-md text-xs hover:bg-zinc-200/80 dark:hover:bg-zinc-700 transition-colors"
+              >
+                {activeTool.module.name}
+              </button>
+            ) : (
+              <span
+                className={clsx(
+                  "transition-colors text-xs px-2 py-0.5 rounded-md",
+                  "text-zinc-900 dark:text-zinc-100 font-medium bg-zinc-100 dark:bg-zinc-800"
+                )}
+              >
+                {activeCategoryLabel}
+              </span>
+            )}
             <AnimatePresence>
               {activeTool && (
-                <motion.span
+                <motion.div
                   key={activeTool.tool.id}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
-                  className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-bold bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 px-2 py-1 rounded-md border border-orange-200 dark:border-orange-500/20"
+                  className="flex items-center gap-2"
                 >
-                  {ActiveToolIcon && <ActiveToolIcon size={14} />}
-                  {activeTool.tool.name}
-                </motion.span>
+                  <ChevronRight size={14} className="opacity-30" />
+                  <span className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-bold bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 px-2 py-1 rounded-md border border-orange-200 dark:border-orange-500/20">
+                    {ActiveToolIcon && <ActiveToolIcon size={14} />}
+                    {activeTool.tool.name}
+                  </span>
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          <AnimatePresence>
-            {activeTool && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex items-center gap-2"
-              >
-                <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse" />
-                <span className="text-xs font-mono text-zinc-500">Running</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </header>
 
-        <main className="flex-1 overflow-auto p-6 custom-scrollbar relative z-0">
+        <main className="flex-1 min-h-0 overflow-auto p-6 custom-scrollbar relative z-0">
           <div className="max-w-7xl mx-auto h-full">
             <AnimatePresence mode="wait">
               {activeTool ? (
