@@ -1,45 +1,28 @@
 "use client";
 
-import {
-  ComponentType,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties
-} from "react";
+import { ComponentType, useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
 import {
-  PanelLeft,
-  PanelLeftClose,
   Sun,
   Moon,
   Search,
-  X,
+  Star,
+  LayoutGrid,
+  Home,
+  ChevronRight,
+  Settings,
   Braces,
   Shield,
   Image as ImageIcon,
-  Box,
-  Earth,
-  Check,
-  Home,
-  Plus,
-  Sparkles,
-  Trash2,
   Monitor,
   PenTool,
-  ArrowUpRight,
-  ChevronDown
+  Earth,
+  Check,
+  Box
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { modules, ModuleMeta, ToolMeta } from "./data/modules";
 import { JsonParser } from "./features/json/JsonParser";
 import { Md5Tool } from "./features/encryption/Md5Tool";
@@ -89,12 +72,6 @@ const toolRegistry: Record<string, ComponentType> = {
   notes: NotesTool
 };
 
-const fadeVariants = {
-  initial: { opacity: 0, y: 16, filter: "blur(6px)" },
-  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
-  exit: { opacity: 0, y: 8, filter: "blur(4px)" }
-};
-
 const moduleIcons: Record<string, LucideIcon> = {
   Braces,
   Shield,
@@ -105,14 +82,45 @@ const moduleIcons: Record<string, LucideIcon> = {
   Check
 };
 
-const languageOptions = [
-  { code: "zh", label: "中文" },
-  { code: "en", label: "English" },
-  { code: "ja", label: "日本語" },
-  { code: "ko", label: "한국어" }
-];
+const FAVORITES_STORAGE_KEY = "chef-favorites";
 
-type LanguageCode = (typeof languageOptions)[number]["code"];
+const sidebarListVariants: Variants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.03 } }
+};
+
+const launcherItem: Variants = {
+  hidden: { opacity: 0, scale: 0.95, y: 10 },
+  show: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { type: "spring", stiffness: 350, damping: 25 }
+  },
+  exit: { opacity: 0, scale: 0.95, transition: { duration: 0.1 } }
+};
+
+const contentVariants: Variants = {
+  hidden: { opacity: 0, scale: 0.98 },
+  show: { opacity: 1, scale: 1 },
+  exit: { opacity: 0, scale: 0.98 }
+};
+
+const toolGridVariants: Variants = {
+  hidden: { opacity: 0, y: 24, scale: 0.96 },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.28, ease: "easeOut" }
+  },
+  exit: {
+    opacity: 0,
+    y: -16,
+    scale: 0.98,
+    transition: { duration: 0.2, ease: "easeInOut" }
+  }
+};
 
 type FavoriteToolRef = {
   moduleId: string;
@@ -123,11 +131,20 @@ type ReadyToolOption = {
   moduleId: string;
   moduleName: string;
   moduleDescription: string;
+  moduleIcon: LucideIcon;
   accent: ModuleMeta["accent"];
   tool: ToolMeta;
 };
 
-const FAVORITES_STORAGE_KEY = "chef-favorites";
+type ActiveToolData = {
+  module: ModuleMeta;
+  tool: ToolMeta;
+};
+
+const categoryBase = [
+  { id: "favorites", label: "我的收藏", icon: Star },
+  { id: "all", label: "全部应用", icon: LayoutGrid }
+];
 
 function buildDefaultFavorites(): FavoriteToolRef[] {
   return modules
@@ -146,75 +163,23 @@ const isFavoriteSupported = (favorite: FavoriteToolRef) =>
       module.tools.some((tool) => tool.id === favorite.toolId && tool.status === "ready")
   );
 
-const navIconVariants = {
-  expanded: { scale: 1, x: 0 },
-  collapsed: { scale: 0.92, x: -2 }
-};
-
-const navTitleVariants = {
-  expanded: {
-    opacity: 1,
-    x: 0,
-    scale: 1,
-    clipPath: "inset(0% 0% 0% 0%)",
-    transitionEnd: { clipPath: "inset(0% 0% 0% 0%)" }
-  },
-  collapsed: {
-    opacity: 0,
-    x: -4,
-    scale: 0.98,
-    clipPath: "inset(0% 96% 0% 0%)",
-    transitionEnd: { clipPath: "inset(0% 96% 0% 0%)" }
-  }
-};
-
-
-const sidebarVariants: Variants = {
-  expanded: {
-    width: 200,
-    padding: "1.35rem 1.1rem",
-    boxShadow: "none",
-    borderRadius: "0",
-    transition: { type: "spring", stiffness: 160, damping: 24, mass: 1 }
-  },
-  collapsed: {
-    width: 72,
-    padding: "1.35rem 0.6rem",
-    boxShadow: "none",
-    borderRadius: "0",
-    transition: { type: "spring", stiffness: 240, damping: 32, mass: 0.9 }
-  }
-};
-
-const MotionButton = motion.create(Button);
-const MotionCard = motion.create(Card);
-
 export default function App() {
-  const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-  const langMenuRef = useRef<HTMLDivElement | null>(null);
-  const langButtonRef = useRef<HTMLButtonElement | null>(null);
-  const toolMenuRef = useRef<HTMLDivElement | null>(null);
-  const toolMenuButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [isHomeActive, setHomeActive] = useState(true);
-  const [favoriteTools, setFavoriteTools] = useState<FavoriteToolRef[]>(() => buildDefaultFavorites());
-  const [language, setLanguage] = useState<LanguageCode>(languageOptions[0].code);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [isLangMenuOpen, setLangMenuOpen] = useState(false);
-  const [isToolMenuOpen, setToolMenuOpen] = useState(false);
-  const [toolMenuQuery, setToolMenuQuery] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [favoriteTools, setFavoriteTools] = useState<FavoriteToolRef[]>(() => buildDefaultFavorites());
+  const [activeCategory, setActiveCategory] = useState<string>("favorites");
+  const [activeToolRef, setActiveToolRef] = useState<FavoriteToolRef | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
-    const stored = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
-    if (!stored) {
+    const storedFavorites = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+    if (!storedFavorites) {
       return;
     }
     try {
-      const parsed = JSON.parse(stored);
+      const parsed = JSON.parse(storedFavorites);
       if (!Array.isArray(parsed)) {
         return;
       }
@@ -229,9 +194,11 @@ export default function App() {
             typeof (value as FavoriteToolRef).toolId === "string"
         )
         .filter(isFavoriteSupported);
-      setFavoriteTools(next);
+      if (next.length) {
+        setFavoriteTools(next);
+      }
     } catch {
-      /* ignore malformed favorites */
+      /* ignore */
     }
   }, []);
 
@@ -239,19 +206,9 @@ export default function App() {
     if (typeof window === "undefined") {
       return;
     }
-    const stored = window.localStorage.getItem("chef-language");
-    if (stored && languageOptions.some((option) => option.code === stored)) {
-      setLanguage(stored as LanguageCode);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const stored = window.localStorage.getItem("chef-theme");
-    if (stored === "dark" || stored === "light") {
-      setTheme(stored);
+    const storedTheme = window.localStorage.getItem("chef-theme");
+    if (storedTheme === "dark" || storedTheme === "light") {
+      setTheme(storedTheme);
       return;
     }
     const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
@@ -271,59 +228,8 @@ export default function App() {
     if (typeof window === "undefined") {
       return;
     }
-    window.localStorage.setItem("chef-language", language);
-  }, [language]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
     window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favoriteTools));
   }, [favoriteTools]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const shouldKeepOpen = (target: Node | null, trigger?: HTMLElement | null, panel?: HTMLElement | null) => {
-      if (!target) {
-        return false;
-      }
-      return !!(panel?.contains(target) || trigger?.contains(target));
-    };
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!shouldKeepOpen(target, langButtonRef.current, langMenuRef.current)) {
-        setLangMenuOpen(false);
-      }
-      if (!shouldKeepOpen(target, toolMenuButtonRef.current, toolMenuRef.current)) {
-        setToolMenuOpen(false);
-      }
-    };
-    const handleFocusIn = (event: FocusEvent) => {
-      const target = event.target as Node;
-      if (!shouldKeepOpen(target, langButtonRef.current, langMenuRef.current)) {
-        setLangMenuOpen(false);
-      }
-      if (!shouldKeepOpen(target, toolMenuButtonRef.current, toolMenuRef.current)) {
-        setToolMenuOpen(false);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setLangMenuOpen(false);
-        setToolMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("focusin", handleFocusIn);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("focusin", handleFocusIn);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, []);
 
   useEffect(() => {
     setFavoriteTools((previous) => {
@@ -332,53 +238,17 @@ export default function App() {
     });
   }, []);
 
-  const [activeModuleId, setActiveModuleId] = useState<string>(modules[0]?.id);
-
   useEffect(() => {
-    if (!modules.length) {
-      setActiveModuleId("");
+    if (!activeToolRef) {
       return;
     }
-    const hasActive = modules.some((module) => module.id === activeModuleId);
-    if (!hasActive) {
-      setActiveModuleId(modules[0].id);
+    const module = modules.find((item) => item.id === activeToolRef.moduleId);
+    const tool = module?.tools.find((item) => item.id === activeToolRef.toolId);
+    if (!module || !tool) {
+      setActiveToolRef(null);
     }
-  }, [modules, activeModuleId]);
+  }, [activeToolRef]);
 
-  const activeModule = useMemo<ModuleMeta | undefined>(
-    () =>
-      isHomeActive ? undefined : modules.find((module) => module.id === activeModuleId),
-    [isHomeActive, modules, activeModuleId]
-  );
-
-  const [activeToolId, setActiveToolId] = useState<string>(
-    activeModule?.tools[0]?.id ?? ""
-  );
-
-  useEffect(() => {
-    if (!activeModule) {
-      setActiveToolId("");
-      return;
-    }
-    const existingTool = activeModule.tools.find((tool) => tool.id === activeToolId);
-    if (existingTool) {
-      return;
-    }
-    const readyTool =
-      activeModule.tools.find((tool) => tool.status === "ready") ?? activeModule.tools[0];
-    if (readyTool) {
-      setActiveToolId(readyTool.id);
-    }
-  }, [activeModule, activeToolId]);
-
-  const activeTool = useMemo<ToolMeta | undefined>(() => {
-    if (!activeModule) {
-      return undefined;
-    }
-    return activeModule.tools.find((tool) => tool.id === activeToolId);
-  }, [activeModule, activeToolId]);
-
-  const ActiveToolComponent = activeTool ? toolRegistry[activeTool.id] : undefined;
   const readyToolOptions = useMemo<ReadyToolOption[]>(
     () =>
       modules.flatMap((module) =>
@@ -388,667 +258,462 @@ export default function App() {
             moduleId: module.id,
             moduleName: module.name,
             moduleDescription: module.description,
+            moduleIcon: moduleIcons[module.icon] ?? Box,
             accent: module.accent,
             tool
           }))
       ),
-    [modules]
-  );
-  const availableFavoriteOptions = useMemo(
-    () =>
-      readyToolOptions.filter(
-        (option) =>
-          !favoriteTools.some(
-            (favorite) =>
-              favorite.moduleId === option.moduleId && favorite.toolId === option.tool.id
-          )
-      ),
-    [favoriteTools, readyToolOptions]
+    []
   );
 
-  const PanelToggleIcon = isSidebarCollapsed ? PanelLeft : PanelLeftClose;
-  const ThemeToggleIcon = theme === "dark" ? Sun : Moon;
-  const toolMenuGroups = useMemo(
-    () =>
-      modules
-        .map((module) => {
-          const readyTools = module.tools.filter((tool) => {
-            if (tool.status !== "ready") {
-              return false;
-            }
-            const keyword = toolMenuQuery.trim().toLowerCase();
-            if (!keyword) {
-              return true;
-            }
-            const combined = `${module.name}${module.description}${tool.name}${tool.description}`.toLowerCase();
-            return combined.includes(keyword);
-          });
-          return { module, tools: readyTools };
-        })
-        .filter((group) => group.tools.length > 0),
-    [modules, toolMenuQuery]
-  );
-  const toolSearchResults = useMemo(() => {
-    if (!normalizedSearch) {
-      return [];
-    }
-    return modules
-      .flatMap((module) =>
-        module.tools.map((tool) => ({
-          moduleId: module.id,
-          moduleName: module.name,
-          tool
-        }))
-      )
-      .filter(({ tool }) => {
-        const name = tool.name.toLowerCase();
-        const description = tool.description.toLowerCase();
-        return name.includes(normalizedSearch) || description.includes(normalizedSearch);
-      })
-      .slice(0, 8);
-  }, [modules, normalizedSearch]);
-
-  useEffect(() => {
-    if (!isToolMenuOpen) {
-      setToolMenuQuery("");
-    }
-  }, [isToolMenuOpen]);
-
-  const handleActivateHome = useCallback(() => {
-    setHomeActive(true);
-  }, [setHomeActive]);
-
-  const handleActivateModule = useCallback(
-    (moduleId: string) => {
-      setHomeActive(false);
-      setActiveModuleId(moduleId);
-      const module = modules.find((item) => item.id === moduleId);
-      const fallbackTool =
-        module?.tools.find((tool) => tool.status === "ready") ?? module?.tools[0];
-      if (fallbackTool) {
-        setActiveToolId(fallbackTool.id);
-      }
-      setToolMenuOpen(false);
-    },
-    [setActiveModuleId, setActiveToolId, setHomeActive, setToolMenuOpen]
-  );
-
-  const handleSelectTool = useCallback(
-    (moduleId: string, toolId: string) => {
-      setHomeActive(false);
-      setActiveModuleId(moduleId);
-      setActiveToolId(toolId);
-      setSidebarCollapsed(false);
-      setToolMenuOpen(false);
-      setToolMenuQuery("");
-      setSearchTerm("");
-    },
-    [
-      setActiveModuleId,
-      setActiveToolId,
-      setHomeActive,
-      setSidebarCollapsed,
-      setToolMenuOpen,
-      setToolMenuQuery,
-      setSearchTerm
-    ]
-  );
-
-  const handleLanguageSelect = useCallback((nextLanguage: LanguageCode) => {
-    setLanguage(nextLanguage);
-    setLangMenuOpen(false);
-  }, [setLangMenuOpen, setLanguage]);
-
-  const handleToolMenuHover = useCallback(() => {
-    setToolMenuOpen(true);
+  const categories = useMemo(() => {
+    const moduleCategories = modules.map((module) => ({
+      id: module.id,
+      label: module.name,
+      icon: moduleIcons[module.icon] ?? Box
+    }));
+    return [...categoryBase, ...moduleCategories];
   }, []);
 
-  const handleToolMenuLeave = useCallback(() => {
-    setToolMenuOpen(false);
-    setToolMenuQuery("");
-  }, [setToolMenuQuery]);
+  useEffect(() => {
+    if (categories.some((category) => category.id === activeCategory)) {
+      return;
+    }
+    setActiveCategory("favorites");
+  }, [categories, activeCategory]);
 
-  const handleAddFavorite = useCallback((moduleId: string, toolId: string) => {
-    setFavoriteTools((previous) => {
-      if (previous.some((favorite) => favorite.moduleId === moduleId && favorite.toolId === toolId)) {
-        return previous;
-      }
-      return [...previous, { moduleId, toolId }];
+  const categoryCounts = useMemo(() => {
+    const moduleCounts: Record<string, number> = {};
+    readyToolOptions.forEach((option) => {
+      moduleCounts[option.moduleId] = (moduleCounts[option.moduleId] ?? 0) + 1;
     });
-  }, [setFavoriteTools]);
+    return {
+      favorites: favoriteTools.length,
+      all: readyToolOptions.length,
+      ...moduleCounts
+    } as Record<string, number>;
+  }, [favoriteTools, readyToolOptions]);
 
-  const handleRemoveFavorite = useCallback((favorite: FavoriteToolRef) => {
-    setFavoriteTools((previous) =>
-      previous.filter(
-        (item) => !(item.moduleId === favorite.moduleId && item.toolId === favorite.toolId)
-      )
-    );
-  }, [setFavoriteTools]);
+  const filteredTools = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const matchesCategory = (option: ReadyToolOption) => {
+      if (activeCategory === "favorites") {
+        return favoriteTools.some(
+          (favorite) => favorite.moduleId === option.moduleId && favorite.toolId === option.tool.id
+        );
+      }
+      if (activeCategory === "all") {
+        return true;
+      }
+      return option.moduleId === activeCategory;
+    };
+    return readyToolOptions.filter((option) => {
+      if (!matchesCategory(option)) {
+        return false;
+      }
+      if (!normalizedSearch) {
+        return true;
+      }
+      const toolName = option.tool.name.toLowerCase();
+      const description = option.tool.description.toLowerCase();
+      const moduleName = option.moduleName.toLowerCase();
+      return (
+        toolName.includes(normalizedSearch) ||
+        description.includes(normalizedSearch) ||
+        moduleName.includes(normalizedSearch)
+      );
+    });
+  }, [readyToolOptions, activeCategory, favoriteTools, searchTerm]);
 
-  const handleLaunchFavorite = useCallback(
-    (favorite: FavoriteToolRef) => {
-      handleSelectTool(favorite.moduleId, favorite.toolId);
-    },
-    [handleSelectTool]
-  );
+  const activeTool = useMemo<ActiveToolData | undefined>(() => {
+    if (!activeToolRef) {
+      return undefined;
+    }
+    const module = modules.find((item) => item.id === activeToolRef.moduleId);
+    const tool = module?.tools.find((item) => item.id === activeToolRef.toolId);
+    if (!module || !tool) {
+      return undefined;
+    }
+    return { module, tool };
+  }, [activeToolRef]);
+
+  const ActiveToolComponent = activeTool ? toolRegistry[activeTool.tool.id] : undefined;
+  const isDark = theme === "dark";
+  const activeCategoryLabel =
+    categories.find((item) => item.id === activeCategory)?.label ?? "全部应用";
+  const ActiveToolIcon = activeTool ? moduleIcons[activeTool.module.icon] ?? Box : undefined;
+
+  const handleCategorySelect = useCallback((categoryId: string) => {
+    setActiveCategory(categoryId);
+    setActiveToolRef(null);
+    setSearchTerm("");
+  }, []);
+
+  const handleToggleFavorite = useCallback((option: ReadyToolOption) => {
+    setFavoriteTools((previous) => {
+      const exists = previous.some(
+        (favorite) => favorite.moduleId === option.moduleId && favorite.toolId === option.tool.id
+      );
+      if (exists) {
+        return previous.filter(
+          (favorite) => !(favorite.moduleId === option.moduleId && favorite.toolId === option.tool.id)
+        );
+      }
+      return [...previous, { moduleId: option.moduleId, toolId: option.tool.id }];
+    });
+  }, []);
+
+  const handleSelectTool = useCallback((option: ReadyToolOption) => {
+    setActiveToolRef({ moduleId: option.moduleId, toolId: option.tool.id });
+  }, []);
+
+  const handleBackHome = useCallback(() => {
+    setActiveToolRef(null);
+  }, []);
+
+  const handleThemeToggle = useCallback(() => {
+    setTheme((previous) => (previous === "dark" ? "light" : "dark"));
+  }, []);
 
   return (
-    <div className={clsx("shell", { "shell--collapsed": isSidebarCollapsed })}>
+    <div
+      className={clsx(
+        "flex h-screen font-sans antialiased transition-colors duration-500",
+        isDark ? "bg-zinc-900 text-zinc-100" : "bg-zinc-50 text-zinc-900"
+      )}
+    >
       <motion.aside
-        className={clsx("nav", { "nav--collapsed": isSidebarCollapsed })}
-        variants={sidebarVariants}
-        animate={isSidebarCollapsed ? "collapsed" : "expanded"}
-        initial={false}
-        layout
-        data-tauri-drag-region
+        initial={{ x: -50, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        className="w-56 border-r border-zinc-200 dark:border-zinc-700/60 flex flex-col bg-white/80 dark:bg-zinc-800/90 backdrop-blur-xl z-20"
       >
-        <div className="nav__header" data-tauri-drag-region>
-          <span className="nav__brand" data-tauri-drag-region>
-            CHEF
-          </span>
-          <MotionButton
-            type="button"
-            variant="bare"
-            size="icon"
-            className="nav__collapse"
-            onClick={() => setSidebarCollapsed((prev) => !prev)}
-            aria-label={isSidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
-            whileTap={{ scale: 0.94 }}
-            data-tauri-drag-region="false"
-          >
-            <PanelToggleIcon size={18} strokeWidth={1.8} />
-          </MotionButton>
+        <div className="p-4 pb-4">
+          <div className="relative group">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-orange-500 transition-colors"
+            />
+            <input
+              type="search"
+              placeholder="Search"
+              value={searchTerm}
+              onChange={(event) => {
+                setSearchTerm(event.target.value);
+                if (activeToolRef) {
+                  setActiveToolRef(null);
+                }
+              }}
+              className="flex h-9 w-full rounded-lg border border-transparent bg-zinc-100 dark:bg-zinc-900/50 px-3 pl-9 text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/20 focus-visible:border-orange-500/30 focus:bg-white dark:focus:bg-zinc-800 shadow-inner"
+            />
+          </div>
         </div>
-        <div className="nav__groups">
-          <LayoutGroup id="sidebar-nav">
-            <div className="nav__list">
-              <motion.button
-                type="button"
-                className={clsx("nav__item", { "nav__item--active": isHomeActive })}
-                onClick={handleActivateHome}
-                whileTap={{ scale: 0.97 }}
-                title="主页"
-                aria-label="主页"
-                layout="position"
-                data-tauri-drag-region="false"
-              >
-                {isHomeActive && (
-                  <>
-                    <motion.span
-                      layoutId="nav-item-highlight"
-                      className="nav__item-highlight"
-                      transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                      aria-hidden
-                    />
-                    <motion.span
-                      className="nav__item-ripple"
-                      aria-hidden
-                      initial={{ opacity: 0.45, scale: 0.86 }}
-                      animate={{ opacity: 0, scale: 1.25 }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
-                    />
-                  </>
-                )}
-                <motion.span
-                  className="nav__icon"
-                  aria-hidden
-                  variants={navIconVariants}
-                  animate={isSidebarCollapsed ? "collapsed" : "expanded"}
-                  transition={{ duration: 0.22, ease: "easeOut" }}
-                >
-                  <Home size={22} strokeWidth={1.8} />
-                </motion.span>
-                <motion.span
-                  className="nav__title"
-                  variants={navTitleVariants}
-                  initial="collapsed"
-                  animate={isSidebarCollapsed ? "collapsed" : "expanded"}
-                  transition={{
-                    duration: 0.24,
-                    ease: "easeOut",
-                    clipPath: { duration: 0.26, ease: "easeOut" }
-                  }}
-                  style={{
-                    WebkitClipPath: isSidebarCollapsed ? "inset(0% 96% 0% 0%)" : "inset(0% 0% 0% 0%)",
-                    clipPath: isSidebarCollapsed ? "inset(0% 96% 0% 0%)" : "inset(0% 0% 0% 0%)",
-                    transformOrigin: "left center"
-                  }}
-                >
-                  主页
-                </motion.span>
-              </motion.button>
-              {modules.map((module) => {
-                const isActive = !isHomeActive && module.id === activeModuleId;
-                const Icon = moduleIcons[module.icon] ?? Box;
-                return (
-                  <motion.button
-                    key={module.id}
-                    type="button"
-                    onClick={() => handleActivateModule(module.id)}
-                    className={clsx("nav__item", { "nav__item--active": isActive })}
-                    whileTap={{ scale: 0.97 }}
-                    title={module.name}
-                    aria-label={module.name}
-                    layout="position"
-                    data-tauri-drag-region="false"
-                  >
-                    {isActive && (
-                      <>
-                        <motion.span
-                          layoutId="nav-item-highlight"
-                          className="nav__item-highlight"
-                          transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                          aria-hidden
-                        />
-                        <motion.span
-                          className="nav__item-ripple"
-                          aria-hidden
-                          initial={{ opacity: 0.45, scale: 0.86 }}
-                          animate={{ opacity: 0, scale: 1.25 }}
-                          transition={{ duration: 0.5, ease: "easeOut" }}
-                        />
-                      </>
-                    )}
-                    <motion.span
-                      className="nav__icon"
-                      aria-hidden
-                      variants={navIconVariants}
-                      animate={isSidebarCollapsed ? "collapsed" : "expanded"}
-                    transition={{ duration: 0.22, ease: "easeOut" }}
-                  >
-                    <Icon size={22} strokeWidth={1.8} />
-                  </motion.span>
-                  <motion.span
-                    className="nav__title"
-                    variants={navTitleVariants}
-                    initial="collapsed"
-                    animate={isSidebarCollapsed ? "collapsed" : "expanded"}
-                    transition={{
-                      duration: 0.24,
-                      ease: "easeOut",
-                      clipPath: { duration: 0.26, ease: "easeOut" }
-                    }}
-                    style={{
-                      WebkitClipPath: isSidebarCollapsed
-                        ? "inset(0% 96% 0% 0%)"
-                        : "inset(0% 0% 0% 0%)",
-                      clipPath: isSidebarCollapsed ? "inset(0% 96% 0% 0%)" : "inset(0% 0% 0% 0%)",
-                      transformOrigin: "left center"
-                    }}
-                  >
-                    {module.name}
-                  </motion.span>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </LayoutGroup>
+
+        <div className="flex-1 px-3 overflow-y-auto custom-scrollbar">
+          <motion.div variants={sidebarListVariants} initial="hidden" animate="show">
+            <LayoutGroup>
+              {categories.map((category) => (
+                <SidebarItem
+                  key={category.id}
+                  icon={category.icon}
+                  label={category.label}
+                  count={categoryCounts[category.id] ?? 0}
+                  active={activeCategory === category.id}
+                  onClick={() => handleCategorySelect(category.id)}
+                />
+              ))}
+            </LayoutGroup>
+          </motion.div>
         </div>
-      </motion.aside>
-      <div className="main">
-        <header className="topbar" data-tauri-drag-region>
-          <div className="topbar__leading" data-tauri-drag-region="false">
-            <div className="topbar__title" data-tauri-drag-region>
-              {activeTool?.name ?? "请选择工具"}
-            </div>
-            <div
-              className="topbar__picker-wrap"
-              data-tauri-drag-region="false"
-              onMouseEnter={handleToolMenuHover}
-              onMouseLeave={handleToolMenuLeave}
-            >
-              <MotionButton
+
+        <div className="p-3 border-t border-zinc-200 dark:border-zinc-700/60 bg-zinc-50/50 dark:bg-zinc-800/50 backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-600">v3.1.0</span>
+            <div className="flex items-center gap-1">
+              <button
                 type="button"
-                variant="bare"
-                size="icon"
-                className="topbar__picker-icon-button"
-                onClick={() => setToolMenuOpen((prev) => !prev)}
-                aria-haspopup="dialog"
-                aria-expanded={isToolMenuOpen}
-                aria-label="展开或收起工具列表"
-                whileTap={{ scale: 0.95 }}
-                ref={toolMenuButtonRef}
-                data-tauri-drag-region="false"
+                onClick={handleThemeToggle}
+                className="p-1.5 rounded-md hover:bg-white dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:text-orange-500 dark:hover:text-orange-400 transition-all shadow-sm hover:shadow"
+                title="切换主题"
               >
-                <motion.span
-                  className="topbar__picker-icon"
-                  animate={{ rotate: isToolMenuOpen ? 180 : 0 }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
-                >
-                  <ChevronDown size={16} strokeWidth={1.6} />
-                </motion.span>
-              </MotionButton>
-              <AnimatePresence>
-                {isToolMenuOpen && (
-                  <motion.div
-                    ref={toolMenuRef}
-                    className="topbar__tool-menu"
-                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    data-tauri-drag-region="false"
-                  >
-                    <div className="topbar__tool-search">
-                      <Search size={14} strokeWidth={1.6} />
-                      <Input
-                        type="search"
-                        value={toolMenuQuery}
-                        onChange={(event) => setToolMenuQuery(event.target.value)}
-                        placeholder="搜索工具或模块"
-                        className="topbar__tool-search-input"
-                      />
-                      {toolMenuQuery && (
-                        <button
-                          type="button"
-                          className="topbar__tool-clear"
-                          onClick={() => setToolMenuQuery("")}
-                        >
-                          <X size={14} strokeWidth={1.6} />
-                        </button>
-                      )}
-                    </div>
-                    <ScrollArea className="topbar__tool-scroll">
-                      {toolMenuGroups.length ? (
-                        toolMenuGroups.map(({ module, tools }) => {
-                          const Icon = moduleIcons[module.icon] ?? Box;
-                          const isActiveModule = activeModule?.id === module.id;
-                          return (
-                            <div key={module.id} className="tool-menu__group">
-                              <div className="tool-menu__group-header">
-                                <div
-                                  className="tool-menu__group-icon"
-                                  style={{
-                                    background: module.accent.from,
-                                    color: "#0f172a"
-                                  }}
-                                >
-                                  <Icon size={16} strokeWidth={1.6} />
-                                </div>
-                                <div className="tool-menu__group-texts">
-                                  <span>{module.name}</span>
-                                  <small>{module.description}</small>
-                                </div>
-                              </div>
-                              <div className="tool-menu__options">
-                                {tools.map((tool) => {
-                                  const isActive = isActiveModule && tool.id === activeToolId;
-                                  return (
-                                    <button
-                                      key={tool.id}
-                                      type="button"
-                                      className={clsx("tool-menu__option", {
-                                        "tool-menu__option--active": isActive
-                                      })}
-                                      onClick={() => handleSelectTool(module.id, tool.id)}
-                                      data-tauri-drag-region="false"
-                                    >
-                                      <div className="tool-menu__option-texts">
-                                        <strong>{tool.name}</strong>
-                                        <p>{tool.description}</p>
-                                      </div>
-                                      {isActive && (
-                                        <span className="tool-menu__option-check">
-                                          <Check size={16} strokeWidth={1.8} />
-                                        </span>
-                                      )}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div className="tool-menu__empty">未找到相关工具，换个关键词试试。</div>
-                      )}
-                    </ScrollArea>
-                  </motion.div>
+                {isDark ? <Sun size={14} /> : <Moon size={14} />}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCategorySelect("favorites")}
+                className={clsx(
+                  "p-1.5 rounded-md transition-all shadow-sm hover:shadow",
+                  activeCategory === "favorites"
+                    ? "bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400"
+                    : "hover:bg-white dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:text-orange-500 dark:hover:text-orange-400"
                 )}
-              </AnimatePresence>
+                title="收藏"
+              >
+                <Settings size={14} />
+              </button>
             </div>
           </div>
-          <div className="topbar__search" data-tauri-drag-region="false">
-            <Search size={16} strokeWidth={1.6} />
-            <Input
-              type="search"
-              placeholder="搜索工具..."
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              data-tauri-drag-region="false"
-              className="topbar__search-input"
-            />
-            {searchTerm && (
-              <Button
-                type="button"
-                variant="bare"
-                size="icon"
-                onClick={() => setSearchTerm("")}
-                aria-label="清除搜索"
-                className="topbar__search-clear"
-                data-tauri-drag-region="false"
-              >
-                <X size={16} strokeWidth={1.8} />
-              </Button>
-            )}
+        </div>
+      </motion.aside>
+
+      <div className="flex-1 flex flex-col min-w-0 bg-zinc-50/50 dark:bg-zinc-900 relative transition-colors overflow-hidden">
+        <header className="h-14 border-b border-zinc-200 dark:border-zinc-700/60 flex items-center justify-between px-6 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-xl z-10 sticky top-0">
+          <div className="flex items-center text-sm text-zinc-500 gap-2">
+            <button
+              type="button"
+              onClick={handleBackHome}
+              className="hover:text-zinc-900 dark:hover:text-zinc-200 flex items-center gap-2 transition-colors group"
+            >
+              <Home size={16} className="group-hover:text-orange-500 transition-colors" />
+            </button>
+            <ChevronRight size={14} className="opacity-30" />
+            <span
+              className={clsx(
+                "transition-colors",
+                !activeTool &&
+                  "text-zinc-900 dark:text-zinc-100 font-medium bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-md text-xs"
+              )}
+            >
+              {activeCategoryLabel}
+            </span>
             <AnimatePresence>
-              {searchTerm && (
-                <motion.ul
-                  className="topbar__search-results"
-                  initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.95 }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
-                  data-tauri-drag-region="false"
+              {activeTool && (
+                <motion.span
+                  key={activeTool.tool.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-bold bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 px-2 py-1 rounded-md border border-orange-200 dark:border-orange-500/20"
                 >
-                  {toolSearchResults.length > 0 ? (
-                    toolSearchResults.map(({ moduleId, moduleName, tool }) => (
-                      <motion.li
-                        key={tool.id}
-                        className="search-result"
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 8 }}
-                        transition={{ duration: 0.18 }}
-                      >
-                        <button
-                          type="button"
-                          onMouseDown={(event) => {
-                            event.preventDefault();
-                            handleSelectTool(moduleId, tool.id);
-                            setSearchTerm("");
-                          }}
-                          className="search-result__button"
-                          data-tauri-drag-region="false"
-                        >
-                          <span className="search-result__icon">
-                            {tool.name.slice(0, 1).toUpperCase()}
-                          </span>
-                          <span className="search-result__texts">
-                            <span className="search-result__title">{tool.name}</span>
-                            <span className="search-result__meta">{moduleName}</span>
-                          </span>
-                          <span className="search-result__arrow">↗</span>
-                        </button>
-                      </motion.li>
-                    ))
-                  ) : (
-                    <li className="search-result search-result--empty">暂未找到匹配的工具</li>
-                  )}
-                </motion.ul>
+                  {ActiveToolIcon && <ActiveToolIcon size={14} />}
+                  {activeTool.tool.name}
+                </motion.span>
               )}
             </AnimatePresence>
           </div>
-          <div className="topbar__info" data-tauri-drag-region="false">
-            <MotionButton
-              type="button"
-              variant="bare"
-              size="icon"
-              className="topbar__theme"
-              onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
-              aria-label={theme === "dark" ? "切换到日间模式" : "切换到夜间模式"}
-              whileTap={{ scale: 0.94 }}
-              data-tauri-drag-region="false"
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.span
-                  className="topbar__theme-icon"
-                  key={theme}
-                  initial={{ rotate: -20, opacity: 0, scale: 0.6 }}
-                  animate={{ rotate: 0, opacity: 1, scale: 1 }}
-                  exit={{ rotate: 20, opacity: 0, scale: 0.6 }}
-                  transition={{ duration: 0.24, ease: "easeOut" }}
-                >
-                  <ThemeToggleIcon size={18} strokeWidth={1.8} />
-                </motion.span>
-              </AnimatePresence>
-            </MotionButton>
-            <div className="topbar__lang" ref={langMenuRef} data-tauri-drag-region="false">
-              <MotionButton
-                type="button"
-                variant="bare"
-                size="none"
-                className="topbar__lang-trigger"
-                onClick={() => setLangMenuOpen((prev) => !prev)}
-                aria-haspopup="listbox"
-                aria-expanded={isLangMenuOpen}
-                aria-label="选择界面语言"
-                whileTap={{ scale: 0.96 }}
-                ref={langButtonRef}
-                data-tauri-drag-region="false"
+
+          <AnimatePresence>
+            {activeTool && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center gap-2"
               >
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.span
-                    key={language}
-                    className="topbar__lang-icon"
-                    initial={{ opacity: 0, scale: 0.7, color: "var(--text-secondary)" }}
-                    animate={{
-                      opacity: 1,
-                      scale: 1,
-                      color: isLangMenuOpen ? "var(--accent)" : "var(--text-secondary)"
-                    }}
-                    exit={{ opacity: 0, scale: 0.7, color: "var(--text-secondary)" }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                  >
-                    <Earth size={16} strokeWidth={1.6} />
-                  </motion.span>
-                </AnimatePresence>
-              </MotionButton>
-              <AnimatePresence>
-                {isLangMenuOpen && (
-                  <motion.ul
-                    className="topbar__lang-menu"
-                    role="listbox"
-                    initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                    transition={{ duration: 0.18, ease: "easeOut" }}
-                    data-tauri-drag-region="false"
-                  >
-                    <LayoutGroup>
-                      {languageOptions.map((option) => {
-                        const isActive = option.code === language;
-                        return (
-                          <motion.li
-                            key={option.code}
-                            role="option"
-                            aria-selected={isActive}
-                            className={clsx("topbar__lang-option", {
-                              "topbar__lang-option--active": isActive
-                            })}
-                            layout
-                          >
-                            {isActive && (
-                              <motion.span
-                                className="topbar__lang-highlight"
-                                layoutId="lang-option-highlight"
-                                transition={{ type: "spring", stiffness: 320, damping: 28 }}
-                              />
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => handleLanguageSelect(option.code)}
-                            >
-                              <span>{option.label}</span>
-                              <AnimatePresence initial={false}>
-                                {isActive && (
-                                  <motion.span
-                                    className="topbar__lang-check"
-                                    initial={{ opacity: 0, scale: 0.8 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.8 }}
-                                    transition={{ duration: 0.16, ease: "easeOut" }}
-                                  >
-                                    <Check size={16} strokeWidth={1.8} />
-                                  </motion.span>
-                                )}
-                              </AnimatePresence>
-                            </button>
-                          </motion.li>
-                        );
-                      })}
-                    </LayoutGroup>
-                  </motion.ul>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
+                <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse" />
+                <span className="text-xs font-mono text-zinc-500">Running</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </header>
 
-        <main className="workspace">
-          {isHomeActive ? (
-            <HomeDashboard
-              favorites={favoriteTools}
-              readyOptions={readyToolOptions}
-              availableOptions={availableFavoriteOptions}
-              onAddFavorite={handleAddFavorite}
-              onRemoveFavorite={handleRemoveFavorite}
-              onLaunchFavorite={handleLaunchFavorite}
-            />
-          ) : (
-            <div className="workspace__body">
-              <section className="workspace__panel workspace__panel--neo">
-                <div className="workspace__panel-header">
-                  <div>
-                    <p className="workspace__panel-eyebrow">功能区</p>
-                    <h2>{activeTool?.name ?? "请选择工具"}</h2>
-                    <p>{activeTool?.description ?? "选择一个工具后即可在此区域进行操作。"}</p>
+        <main className="flex-1 overflow-auto p-6 custom-scrollbar relative z-0">
+          <div className="max-w-7xl mx-auto h-full">
+            <AnimatePresence mode="wait">
+              {activeTool ? (
+                <motion.div
+                  key={activeTool.tool.id}
+                  variants={contentVariants}
+                  initial="hidden"
+                  animate="show"
+                  exit="exit"
+                  className="h-full flex flex-col"
+                >
+                  <div className="flex-1 min-h-0 rounded-2xl overflow-hidden">
+                    <div className="h-full w-full">
+                      {ActiveToolComponent ? (
+                        <ActiveToolComponent />
+                      ) : (
+                        <Placeholder module={activeTool.module} tool={activeTool.tool} />
+                      )}
+                    </div>
                   </div>
-                  {activeModule && <Badge>{activeModule.name}</Badge>}
-                </div>
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={activeTool?.id ?? "placeholder"}
-                    variants={fadeVariants}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                    transition={{ duration: 0.28, ease: "easeOut" }}
-                    className="workspace__panel-body"
-                  >
-                    {ActiveToolComponent ? (
-                      <ActiveToolComponent />
-                    ) : (
-                      <Placeholder module={activeModule} tool={activeTool} />
-                    )}
-                  </motion.div>
-                </AnimatePresence>
-              </section>
-
-            </div>
-          )}
+                </motion.div>
+              ) : (
+                <ToolLauncher
+                  key="launcher"
+                  tools={filteredTools}
+                  favorites={favoriteTools}
+                  activeCategory={activeCategory}
+                  searchTerm={searchTerm}
+                  onToggleFavorite={handleToggleFavorite}
+                  onSelectTool={handleSelectTool}
+                />
+              )}
+            </AnimatePresence>
+          </div>
         </main>
       </div>
     </div>
   );
 }
 
-type PlaceholderProps = {
-  module?: ModuleMeta;
-  tool?: ToolMeta;
+type SidebarItemProps = {
+  icon: LucideIcon;
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
 };
 
-function Placeholder({ module, tool }: PlaceholderProps) {
+function SidebarItem({ icon: Icon, label, count, active, onClick }: SidebarItemProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        "relative group w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200 mb-1 outline-none",
+        active
+          ? "text-orange-600 dark:text-orange-400"
+          : "text-zinc-700 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
+      )}
+    >
+      {active && (
+        <motion.div
+          layoutId="sidebar-active"
+          className="absolute inset-0 bg-orange-100 dark:bg-orange-500/10 rounded-lg"
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        />
+      )}
+      <div className="relative flex items-center gap-3 z-10">
+        <Icon
+          size={18}
+          className={clsx(
+            "transition-colors",
+            active
+              ? "text-orange-600 dark:text-orange-400"
+              : "text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300"
+          )}
+        />
+        {label}
+      </div>
+      {count > 0 && (
+        <span
+          className={clsx(
+            "relative z-10 text-[10px] px-2 py-0.5 rounded-full font-bold transition-colors",
+            active
+              ? "bg-orange-200/50 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300"
+              : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-500 group-hover:bg-zinc-200 dark:group-hover:bg-zinc-600"
+          )}
+        >
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+type ToolLauncherProps = {
+  tools: ReadyToolOption[];
+  favorites: FavoriteToolRef[];
+  activeCategory: string;
+  searchTerm: string;
+  onToggleFavorite: (option: ReadyToolOption) => void;
+  onSelectTool: (option: ReadyToolOption) => void;
+};
+
+function ToolLauncher({ tools, favorites, activeCategory, searchTerm, onToggleFavorite, onSelectTool }: ToolLauncherProps) {
+  const emptyMessage = useMemo(() => {
+    if (searchTerm.trim()) {
+      return "未找到相关工具";
+    }
+    if (activeCategory === "favorites") {
+      return "暂无收藏工具";
+    }
+    return "该分类下暂无工具";
+  }, [activeCategory, searchTerm]);
+
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={`${activeCategory}-${searchTerm ? "search" : "default"}`}
+        variants={toolGridVariants}
+        initial="hidden"
+        animate="show"
+        exit="exit"
+        className="space-y-6 pb-10"
+      >
+        <motion.div
+          layout
+          className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3"
+        >
+          <AnimatePresence mode="popLayout">
+            {tools.map((option) => (
+              <ToolCard
+                key={`${option.moduleId}-${option.tool.id}`}
+                option={option}
+                isFavorite={favorites.some(
+                  (favorite) => favorite.moduleId === option.moduleId && favorite.toolId === option.tool.id
+                )}
+                onToggleFavorite={() => onToggleFavorite(option)}
+                onSelect={() => onSelectTool(option)}
+              />
+            ))}
+          </AnimatePresence>
+          {!tools.length && (
+            <div className="col-span-full flex flex-col items-center justify-center py-24 text-zinc-400">
+              <Search size={48} className="mb-4 opacity-10" />
+              <p className="text-sm font-medium">{emptyMessage}</p>
+            </div>
+          )}
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+type ToolCardProps = {
+  option: ReadyToolOption;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+  onSelect: () => void;
+};
+
+function ToolCard({ option, isFavorite, onToggleFavorite, onSelect }: ToolCardProps) {
+  const Icon = option.moduleIcon;
+  return (
+    <motion.div layout variants={launcherItem} initial="hidden" animate="show" exit="exit" className="relative">
+      <motion.button
+        type="button"
+        onClick={onSelect}
+        whileHover={{ y: -3, boxShadow: "0 8px 16px -4px rgba(0,0,0,0.15)" }}
+        whileTap={{ scale: 0.92 }}
+        className="group w-full aspect-square flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-200 bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-600/50 hover:border-orange-300 dark:hover:border-orange-500/50 hover:shadow-md"
+      >
+        <div className="relative flex-shrink-0 w-10 h-10 mb-2 flex items-center justify-center rounded-lg bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 group-hover:text-orange-500 dark:group-hover:text-orange-400 group-hover:bg-orange-50 dark:group-hover:bg-orange-500/10 transition-colors duration-200">
+          <Icon size={20} />
+        </div>
+        <div className="w-full text-center px-0.5">
+          <h3 className="font-bold text-xs text-zinc-700 dark:text-zinc-200 mb-0.5 truncate w-full group-hover:text-zinc-900 dark:group-hover:text-white transition-colors">
+            {option.tool.name}
+          </h3>
+          <p className="text-[9px] text-zinc-400 dark:text-zinc-500 font-medium leading-tight line-clamp-2 opacity-70 group-hover:opacity-100 transition-opacity">
+            {option.tool.description}
+          </p>
+        </div>
+      </motion.button>
+      <motion.button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggleFavorite();
+        }}
+        className="absolute top-2 right-2 p-1 rounded-full z-10 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-all duration-200"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+      >
+        <Star
+          size={12}
+          className={clsx(
+            "transition-colors duration-200",
+            isFavorite ? "fill-orange-500 text-orange-500" : "text-zinc-400 hover:text-orange-400"
+          )}
+        />
+      </motion.button>
+    </motion.div>
+  );
+}
+
+function Placeholder({ module, tool }: { module?: ModuleMeta; tool?: ToolMeta }) {
   return (
     <div className="placeholder">
       <motion.div
@@ -1061,280 +726,5 @@ function Placeholder({ module, tool }: PlaceholderProps) {
       <h2>{tool?.name ?? module?.name ?? "敬请期待"}</h2>
       <p>{tool?.description ?? module?.description ?? "正在开发更多桌面工具组件。"}</p>
     </div>
-  );
-}
-
-type HomeDashboardProps = {
-  favorites: FavoriteToolRef[];
-  readyOptions: ReadyToolOption[];
-  availableOptions: ReadyToolOption[];
-  onAddFavorite: (moduleId: string, toolId: string) => void;
-  onRemoveFavorite: (favorite: FavoriteToolRef) => void;
-  onLaunchFavorite: (favorite: FavoriteToolRef) => void;
-};
-
-function HomeDashboard({
-  favorites,
-  readyOptions,
-  availableOptions,
-  onAddFavorite,
-  onRemoveFavorite,
-  onLaunchFavorite
-}: HomeDashboardProps) {
-  const [isPickerOpen, setPickerOpen] = useState(false);
-  const [pickerKeyword, setPickerKeyword] = useState("");
-  const [isDeleteMode, setDeleteMode] = useState(false);
-
-  const favoriteDetails = useMemo(() => {
-    return favorites
-      .map((favorite) => {
-        const option = readyOptions.find(
-          (item) => item.moduleId === favorite.moduleId && item.tool.id === favorite.toolId
-        );
-        if (!option) {
-          return null;
-        }
-        return { favorite, option };
-      })
-      .filter((value): value is { favorite: FavoriteToolRef; option: ReadyToolOption } => value !== null);
-  }, [favorites, readyOptions]);
-
-  const filteredOptions = useMemo(() => {
-    const keyword = pickerKeyword.trim().toLowerCase();
-    if (!keyword) {
-      return availableOptions;
-    }
-    return availableOptions.filter((option) => {
-      const toolName = option.tool.name.toLowerCase();
-      const moduleName = option.moduleName.toLowerCase();
-      const description = option.tool.description.toLowerCase();
-      return (
-        toolName.includes(keyword) ||
-        moduleName.includes(keyword) ||
-        description.includes(keyword)
-      );
-    });
-  }, [availableOptions, pickerKeyword]);
-
-  const favoriteCount = favoriteDetails.length;
-
-  const handleClosePicker = useCallback(() => {
-    setPickerOpen(false);
-    setPickerKeyword("");
-  }, []);
-
-  useEffect(() => {
-    if (!availableOptions.length) {
-      setPickerOpen(false);
-      setPickerKeyword("");
-    }
-  }, [availableOptions.length]);
-
-  useEffect(() => {
-    if (!favoriteCount) {
-      setDeleteMode(false);
-    }
-  }, [favoriteCount]);
-
-  const handleAddToFavorites = useCallback(
-    (option: ReadyToolOption) => {
-      onAddFavorite(option.moduleId, option.tool.id);
-    },
-    [onAddFavorite]
-  );
-
-  return (
-    <motion.section
-      className="home"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 12 }}
-      transition={{ duration: 0.24, ease: "easeOut" }}
-    >
-      <div className="home__topbar">
-        <div className="home__heading">
-          <span className="home__section-title">收藏工具</span>
-          <span className="home__section-count">共 {favoriteCount} 个</span>
-        </div>
-        <div className="home__actions">
-          <MotionButton
-            type="button"
-            variant="bare"
-            size="none"
-            className={clsx("home__manage-button", { "home__manage-button--active": isDeleteMode })}
-            onClick={() => {
-              setDeleteMode((prev) => {
-                const next = !prev;
-                if (next) {
-                  handleClosePicker();
-                }
-                return next;
-              });
-            }}
-            disabled={!favoriteCount}
-            whileTap={favoriteCount ? { scale: 0.95 } : undefined}
-          >
-            <Trash2 size={15} strokeWidth={1.8} />
-            <span>{isDeleteMode ? "完成" : "删除"}</span>
-          </MotionButton>
-          <MotionButton
-            type="button"
-            variant="bare"
-            size="none"
-            className="home__add-button"
-            onClick={() => {
-              setDeleteMode(false);
-              setPickerOpen(true);
-            }}
-            disabled={!availableOptions.length}
-            whileTap={availableOptions.length ? { scale: 0.95 } : undefined}
-          >
-            <Plus size={16} strokeWidth={1.8} />
-            <span>添加工具</span>
-          </MotionButton>
-        </div>
-      </div>
-
-      <div className="home__content">
-        <motion.div
-          className="home__favorites"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -12 }}
-          transition={{ duration: 0.24, ease: "easeOut" }}
-        >
-          {favoriteCount ? (
-            <LayoutGroup>
-              <motion.div className="home__favorites-grid" layout>
-                <AnimatePresence mode="popLayout">
-                  {favoriteDetails.map(({ favorite, option }) => (
-                    <MotionCard
-                      key={`${favorite.moduleId}-${favorite.toolId}`}
-                      className={clsx("home-card", { "home-card--deleting": isDeleteMode })}
-                      layout
-                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 40, scale: 0.9, rotateX: 8 }}
-                      transition={{ duration: 0.26, ease: "easeOut" }}
-                      style={
-                        {
-                          "--home-card-accent": option.accent.from ?? "rgba(110,142,255,0.35)",
-                          "--home-card-tint": option.accent.to ?? "rgba(110,142,255,0.12)"
-                        } as CSSProperties
-                      }
-                    >
-                      <button
-                        type="button"
-                        className="home-card__launch"
-                        onClick={() => !isDeleteMode && onLaunchFavorite(favorite)}
-                        disabled={isDeleteMode}
-                      >
-                        <div className="home-card__top">
-                          <span className="home-card__title">{option.tool.name}</span>
-                          <ArrowUpRight size={16} strokeWidth={1.8} className="home-card__icon" aria-hidden />
-                        </div>
-                        <p className="home-card__description">{option.tool.description}</p>
-                        <div className="home-card__footer">
-                          <Badge variant="outline" className="home-card__module-badge">
-                            {option.moduleName}
-                          </Badge>
-                        </div>
-                      </button>
-                      <AnimatePresence>
-                        {isDeleteMode && (
-                          <MotionButton
-                            key="remove"
-                            type="button"
-                            variant="bare"
-                            size="icon"
-                            className="home-card__remove"
-                            onClick={() => onRemoveFavorite(favorite)}
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.8 }}
-                            transition={{ duration: 0.18, ease: "easeOut" }}
-                            whileTap={{ scale: 0.9 }}
-                            aria-label={`移除 ${option.tool.name}`}
-                          >
-                            <X size={12} strokeWidth={1.8} />
-                          </MotionButton>
-                        )}
-                      </AnimatePresence>
-                    </MotionCard>
-                  ))}
-                </AnimatePresence>
-              </motion.div>
-            </LayoutGroup>
-          ) : (
-            <div className="home__favorites-empty">
-              <Sparkles size={18} strokeWidth={1.6} />
-              <p>还没有常用工具，点击右上角的添加按钮挑选常用功能。</p>
-            </div>
-          )}
-        </motion.div>
-      </div>
-
-      <AnimatePresence>
-        {isPickerOpen && (
-          <MotionCard
-            className="home__picker"
-            initial={{ opacity: 0, y: 12, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
-          >
-            <div className="home__picker-header">
-              <span>添加常用工具</span>
-              <Button
-                type="button"
-                variant="bare"
-                size="icon"
-                onClick={handleClosePicker}
-                aria-label="关闭选择器"
-                className="home__picker-close"
-              >
-                <X size={16} strokeWidth={1.8} />
-              </Button>
-            </div>
-            <div className="home__picker-search">
-              <Search size={14} strokeWidth={1.6} />
-              <Input
-                type="search"
-                value={pickerKeyword}
-                onChange={(event) => setPickerKeyword(event.target.value)}
-                placeholder="搜索工具或模块"
-                className="home__picker-search-input"
-              />
-            </div>
-            <ScrollArea className="home__picker-scroll">
-              <div className="home__picker-list">
-                {filteredOptions.length ? (
-                  filteredOptions.map((option) => (
-                    <Button
-                      key={`${option.moduleId}-${option.tool.id}`}
-                      type="button"
-                      variant="bare"
-                      size="none"
-                      className="home__picker-item"
-                      onClick={() => handleAddToFavorites(option)}
-                    >
-                      <div className="home__picker-item-texts">
-                        <span className="home__picker-item-title">{option.tool.name}</span>
-                        <span className="home__picker-item-meta">
-                          {option.moduleName} · {option.tool.description}
-                        </span>
-                      </div>
-                      <Plus size={14} strokeWidth={1.8} />
-                    </Button>
-                  ))
-                ) : (
-                  <div className="home__picker-empty">没有更多工具可添加或搜索结果为空。</div>
-                )}
-              </div>
-            </ScrollArea>
-          </MotionCard>
-        )}
-      </AnimatePresence>
-    </motion.section>
   );
 }
