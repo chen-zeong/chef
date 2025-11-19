@@ -60,4 +60,4 @@ jobs:
       - name: Build macOS app
         env:
           TAURI_BUILD_ARCH: ${{ matrix.arch }}
-        run: pnpm tauri build -- --target ${{ matrix.arch }}-apple-darwin
+        run: pnpm tauri build --target ${{ matrix.arch }}-apple-darwin
